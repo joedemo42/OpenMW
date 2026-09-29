@@ -89,3 +89,12 @@ venv/
 ## operating system files
 .DS_Store
 Thumbs.db
+
+## iOS port build output
+/DerivedData/
+/archive/
+/ios-deps/build/
+/ios-deps/source/
+/ios-deps/artifacts/
+/ios/BUILD_NUMBER
+/ios/Morrowind-iOS.xcodeproj/
