@@ -1,0 +1,163 @@
+diff -ru a/src/video/uikit/SDL_uikitappdelegate.h b/src/video/uikit/SDL_uikitappdelegate.h
+--- a/src/video/uikit/SDL_uikitappdelegate.h	2026-09-30 00:21:15
++++ b/src/video/uikit/SDL_uikitappdelegate.h	2026-09-30 00:22:34
+@@ -44,4 +44,9 @@
+ 
+ @end
+ 
++/* Scene delegate used when the app declares UIApplicationSceneManifest (UIScene life cycle). */
++API_AVAILABLE(ios(13.0), tvos(13.0))
++@interface SDLUIKitSceneDelegate : UIResponder <UIWindowSceneDelegate>
++@end
++
+ /* vi: set ts=4 sw=4 expandtab: */
+diff -ru a/src/video/uikit/SDL_uikitappdelegate.m b/src/video/uikit/SDL_uikitappdelegate.m
+--- a/src/video/uikit/SDL_uikitappdelegate.m	2026-09-30 00:21:15
++++ b/src/video/uikit/SDL_uikitappdelegate.m	2026-09-30 00:22:34
+@@ -447,7 +447,8 @@
+         vc = [[SDLLaunchScreenController alloc] initWithNibName:screenname bundle:bundle];
+     }
+ 
+-    if (vc.view) {
++    /* ponytail: no programmatic launch screen with the UIScene life cycle (window would need the scene) */
++    if (vc.view && !UIKit_UsesSceneLifeCycle()) {
+         launchWindow = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
+ 
+         /* We don't want the launch window immediately hidden when a real SDL
+@@ -470,11 +471,23 @@
+                         SDL_IdleTimerDisabledChanged, NULL);
+ 
+     SDL_SetMainReady();
+-    [self performSelector:@selector(postFinishLaunch) withObject:nil afterDelay:0.0];
++    /* With the UIScene life cycle, SDL_main starts once the scene is connected (SDLUIKitSceneDelegate). */
++    if (!UIKit_UsesSceneLifeCycle()) {
++        [self performSelector:@selector(postFinishLaunch) withObject:nil afterDelay:0.0];
++    }
+ 
+     return YES;
+ }
+ 
++- (UISceneConfiguration *)application:(UIApplication *)application
++    configurationForConnectingSceneSession:(UISceneSession *)connectingSceneSession
++                                   options:(UISceneConnectionOptions *)options API_AVAILABLE(ios(13.0), tvos(13.0))
++{
++    UISceneConfiguration *config = [[UISceneConfiguration alloc] initWithName:nil sessionRole:connectingSceneSession.role];
++    config.delegateClass = [SDLUIKitSceneDelegate class];
++    return config;
++}
++
+ - (UIWindow *)window
+ {
+     SDL_VideoDevice *_this = SDL_GetVideoDevice();
+@@ -524,6 +537,27 @@
+ }
+ 
+ #endif
++
++@end
++
++@implementation SDLUIKitSceneDelegate
++
++- (void)scene:(UIScene *)scene willConnectToSession:(UISceneSession *)session options:(UISceneConnectionOptions *)connectionOptions
++{
++    id appDelegate = [SDLUIKitDelegate sharedAppDelegate];
++    for (UIOpenURLContext *context in connectionOptions.URLContexts) {
++        [appDelegate sendDropFileForURL:context.URL];
++    }
++    /* app state notifications (active/background/...) keep being delivered through UIApplication */
++    [appDelegate performSelector:@selector(postFinishLaunch) withObject:nil afterDelay:0.0];
++}
++
++- (void)scene:(UIScene *)scene openURLContexts:(NSSet<UIOpenURLContext *> *)URLContexts
++{
++    for (UIOpenURLContext *context in URLContexts) {
++        [[SDLUIKitDelegate sharedAppDelegate] sendDropFileForURL:context.URL];
++    }
++}
+ 
+ @end
+ 
+diff -ru a/src/video/uikit/SDL_uikitmessagebox.m b/src/video/uikit/SDL_uikitmessagebox.m
+--- a/src/video/uikit/SDL_uikitmessagebox.m	2026-09-30 00:21:15
++++ b/src/video/uikit/SDL_uikitmessagebox.m	2026-09-30 00:22:34
+@@ -99,7 +99,16 @@
+     }
+ 
+     if (window == nil || window.rootViewController == nil) {
+-        alertwindow = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
++        alertwindow = nil;
++        if (@available(iOS 13.0, tvOS 13.0, *)) {
++            UIWindowScene *scene = UIKit_GetActiveWindowScene();
++            if (scene) {
++                alertwindow = [[UIWindow alloc] initWithWindowScene:scene];
++            }
++        }
++        if (!alertwindow) {
++            alertwindow = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
++        }
+         alertwindow.rootViewController = [UIViewController new];
+         alertwindow.windowLevel = UIWindowLevelAlert;
+ 
+diff -ru a/src/video/uikit/SDL_uikitwindow.h b/src/video/uikit/SDL_uikitwindow.h
+--- a/src/video/uikit/SDL_uikitwindow.h	2026-09-30 00:21:15
++++ b/src/video/uikit/SDL_uikitwindow.h	2026-09-30 00:22:34
+@@ -42,6 +42,9 @@
+ 
+ extern NSUInteger UIKit_GetSupportedOrientations(SDL_Window * window);
+ 
++extern SDL_bool UIKit_UsesSceneLifeCycle(void);
++extern UIWindowScene *UIKit_GetActiveWindowScene(void) API_AVAILABLE(ios(13.0), tvos(13.0));
++
+ @class UIWindow;
+ 
+ @interface SDL_WindowData : NSObject
+diff -ru a/src/video/uikit/SDL_uikitwindow.m b/src/video/uikit/SDL_uikitwindow.m
+--- a/src/video/uikit/SDL_uikitwindow.m	2026-09-30 00:21:15
++++ b/src/video/uikit/SDL_uikitwindow.m	2026-09-30 00:22:34
+@@ -149,6 +149,28 @@
+     return 0;
+ }
+ 
++SDL_bool UIKit_UsesSceneLifeCycle(void)
++{
++    return [[NSBundle mainBundle] objectForInfoDictionaryKey:@"UIApplicationSceneManifest"] != nil;
++}
++
++UIWindowScene *UIKit_GetActiveWindowScene(void)
++{
++    UIWindowScene *fallback = nil;
++    for (UIScene *scene in [UIApplication sharedApplication].connectedScenes) {
++        if (![scene isKindOfClass:[UIWindowScene class]]) {
++            continue;
++        }
++        if (scene.activationState == UISceneActivationStateForegroundActive) {
++            return (UIWindowScene *)scene;
++        }
++        if (!fallback || scene.activationState == UISceneActivationStateForegroundInactive) {
++            fallback = (UIWindowScene *)scene;
++        }
++    }
++    return fallback;
++}
++
+ int UIKit_CreateWindow(_THIS, SDL_Window *window)
+ {
+     @autoreleasepool {
+@@ -207,7 +229,16 @@
+ 
+         /* ignore the size user requested, and make a fullscreen window */
+         /* !!! FIXME: can we have a smaller view? */
+-        uiwindow = [[SDL_uikitwindow alloc] initWithFrame:data.uiscreen.bounds];
++        uiwindow = nil;
++        if (@available(iOS 13.0, tvOS 13.0, *)) {
++            UIWindowScene *scene = UIKit_GetActiveWindowScene();
++            if (scene) {
++                uiwindow = [[SDL_uikitwindow alloc] initWithWindowScene:scene];
++            }
++        }
++        if (!uiwindow) {
++            uiwindow = [[SDL_uikitwindow alloc] initWithFrame:data.uiscreen.bounds];
++        }
+ 
+         /* put the window on an external display if appropriate. */
+         if (data.uiscreen != [UIScreen mainScreen]) {
