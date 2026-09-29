@@ -15,7 +15,7 @@ ARTIFACTS_DIR="$DEPS_DIR/artifacts"
 SCRIPT="${0#"$PWD/"}"
 
 # Build order: every dependency after its prerequisites.
-DEPS=()
+DEPS=(moltenvk)
 
 usage() {
     cat <<EOF
@@ -34,7 +34,95 @@ EOF
 
 die() { echo "error: $*" >&2; exit 1; }
 
+# ---- helpers for recipes ($DEP is the dependency being processed) ----
+
+MIN_IOS=26.0
+JOBS=$(sysctl -n hw.ncpu)
+
+# Toolchain values for one target: SDK, SDK_PATH, TRIPLE, TARGET_DIR (build/<dep>/<target>).
+target_env() {  # <simulator|device>
+    case "$1" in
+        simulator) SDK=iphonesimulator; TRIPLE="arm64-apple-ios$MIN_IOS-simulator" ;;
+        device) SDK=iphoneos; TRIPLE="arm64-apple-ios$MIN_IOS" ;;
+    esac
+    SDK_PATH=$(xcrun --sdk "$SDK" --show-sdk-path)
+    TARGET_DIR="$BUILD_DIR/$DEP/$1"
+}
+
+# Downloads <url> into source/<dep>/ and checks its sha256.
+fetch() {  # <url> <sha256>
+    local file
+    file="$SOURCE_DIR/$DEP/$(basename "$1")"
+    mkdir -p "$SOURCE_DIR/$DEP"
+    curl -fsSL --retry 3 -o "$file.part" "$1" || die "download failed: $1"
+    echo "$2  $file.part" | shasum -a 256 -c - > /dev/null || die "sha256 mismatch: $1"
+    mv "$file.part" "$file"
+}
+
+# Clones <repo> at <tag> into source/<dep> and checks the tag resolves to <commit>.
+fetch_git() {  # <repo> <tag> <commit>
+    git clone -q --depth 1 --branch "$2" "$1" "$SOURCE_DIR/$DEP"
+    [ "$(git -C "$SOURCE_DIR/$DEP" rev-parse HEAD)" = "$3" ] || die "$1 $2 is not commit $3"
+}
+
+# Fills build/<dep>/src from source/<dep> (tarball or tree) and applies patches/<dep>/*.patch.
+# Re-prepares (and drops old build output) when the patch set changes.
+prepare_source() {  # <tarball name | ->  ('-' copies the source tree)
+    local dir="$BUILD_DIR/$DEP" stamp patches p
+    patches=$( (cat "$DEPS_DIR/patches/$DEP"/*.patch 2>/dev/null || true) | shasum -a 256 | cut -d' ' -f1)
+    [ "$(cat "$dir/.prepared" 2>/dev/null)" = "$patches" ] && return
+    rm -rf "$dir" && mkdir -p "$dir/src"
+    if [ "$1" = - ]; then
+        rsync -a --exclude .git "$SOURCE_DIR/$DEP/" "$dir/src/"
+    else
+        tar -xf "$SOURCE_DIR/$DEP/$1" -C "$dir/src" --strip-components 1
+    fi
+    for p in "$DEPS_DIR/patches/$DEP"/*.patch; do
+        [ -e "$p" ] || continue
+        echo "==> patch $DEP: $(basename "$p")"
+        patch -d "$dir/src" -p1 --forward --batch < "$p" > /dev/null || die "patch $(basename "$p") failed"
+    done
+    echo "$patches" > "$dir/.prepared"
+}
+
+# Configures, builds and installs a CMake project for the current target (after target_env)
+# into build/<dep>/<target>/install (static, Release).
+cmake_build() {  # <source dir> [cmake args...]
+    local src=$1; shift
+    cmake -S "$src" -B "$TARGET_DIR/build" -G Ninja -Wno-dev \
+        -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_SYSROOT="$SDK" -DCMAKE_OSX_ARCHITECTURES=arm64 \
+        -DCMAKE_OSX_DEPLOYMENT_TARGET="$MIN_IOS" -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF \
+        -DCMAKE_INSTALL_PREFIX="$TARGET_DIR/install" "$@"
+    cmake --build "$TARGET_DIR/build" -j "$JOBS"
+    cmake --install "$TARGET_DIR/build" > /dev/null
+}
+
+# Creates artifacts/<name>.xcframework from build/<dep>/<target>/<lib> (+ <headers> dir)
+# for every built target, then checks each requested target's slice (arm64, platform).
+xcframework() {  # <name> <lib path> [<headers path>]   (paths relative to build/<dep>/<target>)
+    local name=$1 out="$ARTIFACTS_DIR/$1.xcframework" args=() t
+    for t in simulator device; do
+        [ -f "$BUILD_DIR/$DEP/$t/$2" ] || continue
+        args+=(-library "$BUILD_DIR/$DEP/$t/$2")
+        [ -z "${3:-}" ] || args+=(-headers "$BUILD_DIR/$DEP/$t/$3")
+    done
+    rm -rf "$out" && mkdir -p "$ARTIFACTS_DIR"
+    xcodebuild -create-xcframework "${args[@]}" -output "$out" > /dev/null
+    for t in "${TARGETS[@]}"; do
+        # LC_BUILD_VERSION platform: 2 = iOS, 7 = iOS simulator
+        local slice=ios-arm64 platform=2 lib platforms
+        [ "$t" = simulator ] && { slice=ios-arm64-simulator; platform=7; }
+        lib="$out/$slice/$(basename "$2")"
+        [ -f "$lib" ] || die "$name.xcframework: missing $t slice"
+        [ "$(lipo -archs "$lib")" = arm64 ] || die "$name.xcframework: $t slice is not arm64-only"
+        platforms=$(otool -l "$lib" | awk '/cmd LC_BUILD_VERSION/ {f = 1} f && $1 == "platform" {print $2; f = 0}' | sort -u)
+        [ "$platforms" = "$platform" ] || die "$name.xcframework: $t slice platforms '${platforms//$'\n'/ }', expected $platform"
+    done
+    echo "==> $name.xcframework ok (${TARGETS[*]})"
+}
+
 load_recipe() {
+    DEP=$1
     DEP_REQUIRES=()
     DEP_ARTIFACTS=()
     # shellcheck source=/dev/null
