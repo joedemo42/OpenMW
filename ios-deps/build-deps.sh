@@ -15,7 +15,7 @@ ARTIFACTS_DIR="$DEPS_DIR/artifacts"
 SCRIPT="${0#"$PWD/"}"
 
 # Build order: every dependency after its prerequisites.
-DEPS=(moltenvk)
+DEPS=(moltenvk mesa)
 
 usage() {
     cat <<EOF

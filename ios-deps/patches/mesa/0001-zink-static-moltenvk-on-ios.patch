@@ -1,0 +1,35 @@
+--- a/src/gallium/drivers/zink/zink_screen.c	2026-09-30 00:25:29
++++ b/src/gallium/drivers/zink/zink_screen.c	2026-09-30 00:25:29
+@@ -87,6 +87,13 @@
+ #define VK_NO_PROTOTYPES
+ #include "MoltenVK/mvk_deprecated_api.h"
+ #include "MoltenVK/mvk_private_api.h"
++#include <TargetConditionals.h>
++#if TARGET_OS_IPHONE
++/* iOS: MoltenVK is linked statically, there is no Vulkan loader to dlopen */
++#define ZINK_STATIC_VULKAN 1
++VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL vkGetInstanceProcAddr(VkInstance instance, const char *pName);
++VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL vkGetDeviceProcAddr(VkDevice device, const char *pName);
++#endif
+ #endif /* __APPLE__ */
+ 
+ #ifdef HAVE_LIBDRM
+@@ -3422,6 +3429,10 @@
+ 
+    u_trace_state_init();
+ 
++#ifdef ZINK_STATIC_VULKAN
++   screen->vk_GetInstanceProcAddr = vkGetInstanceProcAddr;
++   screen->vk_GetDeviceProcAddr = vkGetDeviceProcAddr;
++#else
+    screen->loader_lib = util_dl_open(VK_LIBNAME);
+    if (!screen->loader_lib) {
+       if (!screen->driver_name_is_inferred)
+@@ -3431,6 +3442,7 @@
+ 
+    screen->vk_GetInstanceProcAddr = (PFN_vkGetInstanceProcAddr)util_dl_get_proc_address(screen->loader_lib, "vkGetInstanceProcAddr");
+    screen->vk_GetDeviceProcAddr = (PFN_vkGetDeviceProcAddr)util_dl_get_proc_address(screen->loader_lib, "vkGetDeviceProcAddr");
++#endif
+    if (!screen->vk_GetInstanceProcAddr ||
+        !screen->vk_GetDeviceProcAddr) {
+       if (!screen->driver_name_is_inferred)
