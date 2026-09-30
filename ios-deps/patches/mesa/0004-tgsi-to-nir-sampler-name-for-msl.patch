@@ -1,0 +1,14 @@
+--- a/src/gallium/auxiliary/nir/tgsi_to_nir.c	2026-09-30 08:08:12
++++ b/src/gallium/auxiliary/nir/tgsi_to_nir.c	2026-09-30 08:08:12
+@@ -1098,8 +1098,10 @@
+    if (!var) {
+       const struct glsl_type *type =
+          glsl_sampler_type(dim, is_shadow, is_array, base_type);
++      /* not "sampler": SPIRV-Cross (MoltenVK) makes it a Metal argument buffer member next to one
++       * of the Metal type 'sampler', which the name then hides (shader compile error) */
+       var = nir_variable_create(c->build.shader, nir_var_uniform, type,
+-                                "sampler");
++                                "samp");
+       var->data.binding = binding;
+       var->data.explicit_binding = true;
+ 

@@ -3,11 +3,13 @@
 # (objects + internal archives) of libEGL and libgallium plus libglapi_bridge (public gl* entry points).
 DEP_REQUIRES=(moltenvk)
 DEP_ARTIFACTS=(Mesa)
-MESA_VERSION=26.2.3
+# 25.1.x: latest release working with MoltenVK. From 25.2 on, zink hard-requires robustness2
+# nullDescriptor, which MoltenVK does not provide (25.1 still falls back to dummy descriptors).
+MESA_VERSION=25.1.9
 
 mesa_download() {
     fetch "https://archive.mesa3d.org/mesa-$MESA_VERSION.tar.xz" \
-        1628058a8d2c0615975de5a15ab7bbb9638c50000b5bed9456ff423ea034a81f
+        412df33a1bb3c785ed698555a3972118a37c458e7accf6ae53f4bb87b3db454a
 }
 
 mesa_build() {  # <simulator|device>
@@ -80,8 +82,11 @@ EOF
         mv "$TARGET_DIR/cross.ini.new" "$TARGET_DIR/setup.stamp"
     fi
     rm -f "$TARGET_DIR/cross.ini.new"
+    local bridge
+    bridge=$(ninja -C "$build" -t targets all | awk -F: '/\/libglapi_bridge\.a:/ && !found {print $1; found = 1}')
+    [ -n "$bridge" ] || die "no libglapi_bridge target"
     PATH="$path" ninja -C "$build"
-    PATH="$path" ninja -C "$build" src/mesa/glapi/glapi/libglapi_bridge.a
+    PATH="$path" ninja -C "$build" "$bridge"
     PATH="$path" meson install -C "$build" --no-rebuild --quiet
 
     # static library from the link inputs of the shared libraries
@@ -91,16 +96,23 @@ EOF
         inputs+=($(ninja -C "$build" -t commands "$dylib" | tail -1 | tr ' ,' '\n\n' | grep -E '\.(o|a)$'))
     done
     [ ${#inputs[@]} -gt 0 ] || die "no libEGL/libgallium link inputs found"
-    inputs+=(src/mesa/glapi/glapi/libglapi_bridge.a)
+    # libEGL links the dlopen() pipe loader, libgallium the static one (with zink); merged, only the static
+    # one may stay, or its symbols would resolve to the dynamic variant and zink would never be linked
+    # shellcheck disable=SC2207
+    inputs=($(printf '%s\n' "${inputs[@]}" | grep -v '/libpipe_loader_dynamic\.a$'))
+    inputs+=("$bridge")
     mkdir -p "$TARGET_DIR/lib"
     # shellcheck disable=SC2046
     (cd "$build" && libtool -static -no_warning_for_no_symbols -o "$TARGET_DIR/lib/libMesa.a" \
         $(printf '%s\n' "${inputs[@]}" | awk '!seen[$0]++'))
 
-    # Drop members whose strong definitions all exist in an earlier member (vk_dispatch_table.c is
-    # built into both libzink and libvulkan_util). Harmless for on-demand linking, fatal with -all_load.
+    # The generated vk_dispatch_table.c is built into both libzink and libvulkan_util: drop the second copy
+    # (harmless for on-demand linking, fatal with -all_load). Any other duplicate means diverging code.
     local lib="$TARGET_DIR/lib/libMesa.a" member
-    for member in $(strong_duplicates "$lib" drop); do ar -d "$lib" "$member"; done
+    for member in $(strong_duplicates "$lib" drop); do
+        [[ "$member" == *vk_dispatch_table.c.o ]] || die "libMesa.a: unexpected duplicate member $member"
+        ar -d "$lib" "$member"
+    done
     ranlib "$lib" 2> /dev/null
     [ -z "$(strong_duplicates "$lib" symbols)" ] || die "libMesa.a: duplicate strong symbols remain"
 }
