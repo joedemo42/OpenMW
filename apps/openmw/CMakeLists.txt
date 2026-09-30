@@ -149,6 +149,8 @@ if(BUILD_OPENMW)
         # linked by the iOS app host (ios/), whose SDL2main provides main()
         add_library(openmw STATIC
             main.cpp
+            ios/firstlaunch.cpp
+            ${CMAKE_SOURCE_DIR}/apps/mwiniimporter/importer.cpp
         )
     else()
         openmw_add_executable(openmw

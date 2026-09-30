@@ -28,6 +28,10 @@ extern "C" __declspec(dllexport) DWORD AmdPowerXpressRequestHighPerformance = 0x
 #include <TargetConditionals.h>
 #endif
 
+#if defined(__APPLE__) && TARGET_OS_IPHONE
+#include "ios/firstlaunch.hpp"
+#endif
+
 #if (defined(__APPLE__) || defined(__linux) || defined(__unix) || defined(__posix))
 #include <unistd.h>
 #endif
@@ -223,6 +227,10 @@ int runApplication(int argc, char* argv[])
 
     osg::setNotifyHandler(new OSGLogHandler());
     Files::ConfigurationManager cfgMgr;
+#if defined(__APPLE__) && TARGET_OS_IPHONE
+    if (!OMW::ensureUserConfig(cfgMgr.getUserConfigPath()))
+        return 0;
+#endif
     std::unique_ptr<OMW::Engine> engine = std::make_unique<OMW::Engine>(cfgMgr);
 
     engine->setRecastMaxLogLevel(Debug::getRecastMaxLogLevel());
