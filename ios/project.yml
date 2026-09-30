@@ -48,6 +48,14 @@ targets:
         embed: false
       - framework: ../ios-deps/artifacts/RecastNavigation.xcframework
         embed: false
+      - framework: ../ios-deps/artifacts/ICU.xcframework
+        embed: false
+      - framework: ../ios-deps/artifacts/LuaJIT.xcframework
+        embed: false
+      - framework: ../ios-deps/artifacts/FFmpeg.xcframework
+        embed: false
+      - framework: ../ios-deps/artifacts/OpenAL.xcframework
+        embed: false
       - sdk: AudioToolbox.framework
       - sdk: AVFoundation.framework
       - sdk: CoreAudio.framework
