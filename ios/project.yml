@@ -36,6 +36,18 @@ targets:
         embed: false
       - framework: ../ios-deps/artifacts/freetype.xcframework
         embed: false
+      - framework: ../ios-deps/artifacts/LZ4.xcframework
+        embed: false
+      - framework: ../ios-deps/artifacts/Boost.xcframework
+        embed: false
+      - framework: ../ios-deps/artifacts/yaml-cpp.xcframework
+        embed: false
+      - framework: ../ios-deps/artifacts/Bullet.xcframework
+        embed: false
+      - framework: ../ios-deps/artifacts/MyGUI.xcframework
+        embed: false
+      - framework: ../ios-deps/artifacts/RecastNavigation.xcframework
+        embed: false
       - sdk: AudioToolbox.framework
       - sdk: AVFoundation.framework
       - sdk: CoreAudio.framework
