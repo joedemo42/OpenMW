@@ -1,0 +1,15 @@
+--- a/src/egl/drivers/dri2/platform_surfaceless.c	2026-09-30 07:30:55
++++ b/src/egl/drivers/dri2/platform_surfaceless.c	2026-09-30 07:30:55
+@@ -389,8 +389,10 @@
+     */
+    driver_loaded = surfaceless_probe_device(disp, disp->Options.ForceSoftware,
+                                             disp->Options.Zink);
+-   if (!driver_loaded && disp->Options.ForceSoftware) {
+-      _eglLog(_EGL_DEBUG, "Falling back to surfaceless swrast without DRM.");
++   /* zink does not need a DRM device (e.g. Vulkan through MoltenVK on Apple platforms) */
++   if (!driver_loaded && (disp->Options.ForceSoftware || disp->Options.Zink)) {
++      _eglLog(_EGL_DEBUG, "Falling back to surfaceless %s without DRM.",
++              disp->Options.Zink ? "zink" : "swrast");
+       driver_loaded = surfaceless_probe_device_sw(disp);
+    }
+ 
