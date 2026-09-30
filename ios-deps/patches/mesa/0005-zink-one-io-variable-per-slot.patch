@@ -1,0 +1,28 @@
+--- a/src/gallium/drivers/zink/zink_compiler.c
++++ b/src/gallium/drivers/zink/zink_compiler.c
+@@ -5251,11 +5251,11 @@
+       return;
+ 
+    /* filter ignored components to scan later:
+-    * - ignore no-overlapping-components case
++    * - non-overlapping components share the slot's variable (see create_io_var)
+     * - always match fbfetch and dual src blend
+     */
+    if (ris->component_mask &&
+-       (!(ris->component_mask & cmask) || ris->fb_fetch_output != sem.fb_fetch_output || ris->dual_source_blend_index != sem.dual_source_blend_index)) {
++       (ris->fb_fetch_output != sem.fb_fetch_output || ris->dual_source_blend_index != sem.dual_source_blend_index)) {
+       ris->ignored_component_mask |= cmask;
+       return;
+    }
+@@ -5372,6 +5372,11 @@
+ {
+    char name[1024];
+    assert(ris->component_mask);
++   /* one variable per slot from component 0 on, like nir_unlower_io_to_vars (Mesa 26): SPIRV-Cross turns variables
++    * at component offsets into separate MSL interface members (user(locnN_C)), which Metal cannot link to a
++    * vertex output covering the whole slot (MoltenVK pipeline creation fails)
++    */
++   ris->component_mask = BITFIELD_MASK(util_last_bit(ris->component_mask));
+    if (ris->newname || ris->name) {
+       snprintf(name, sizeof(name), "%s", ris->newname ? ris->newname : ris->name);
+    /* always use builtin name where possible */
