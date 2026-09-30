@@ -47,6 +47,19 @@ next_build_number() {
     echo "$BUILD_NUMBER" > "$file"
 }
 
+# Builds the dependency xcframeworks if a slice for <target> is missing (incremental).
+DEP_XCFRAMEWORKS=(MoltenVK Mesa SDL2 SDL2main)
+ensure_deps() {  # <simulator|device>
+    local slice=ios-arm64 name
+    [ "$1" = simulator ] && slice=ios-arm64-simulator
+    for name in "${DEP_XCFRAMEWORKS[@]}"; do
+        if [ ! -d "$REPO/ios-deps/artifacts/$name.xcframework/$slice" ]; then
+            "$REPO/ios-deps/build-deps.sh" build all "$1"
+            return
+        fi
+    done
+}
+
 generate_project() {
     xcodegen generate --quiet --spec "$REPO/ios/project.yml" --project "$REPO/ios"
 }
@@ -54,6 +67,7 @@ generate_project() {
 # xcodebuild <sdk> [extra args]
 xcbuild() {
     local sdk=$1; shift
+    ensure_deps "$([ "$sdk" = iphoneos ] && echo device || echo simulator)"
     next_build_number
     generate_project
     echo "==> build $sdk (version $(version), build $BUILD_NUMBER)"
