@@ -24,6 +24,9 @@ Target options: --simulator <name|UDID> | --device <name|UDID>  (default: $DEFAU
   ipa     [--unsigned]              device build -> IPA in DerivedData/ipa
   upload  [--notes <text>|--notes-file <path>]
           signed IPA of current tree + release notes ("What's New") -> archive/ -> repo server
+  documents zip                     game data payload (./Data -> Data/) -> DerivedData/ipa/Documents.zip
+  documents install [target]        copy the payload into the installed app's Documents, no reinstall
+                                    (app not installed -> abort; overwrites, deletes nothing)
   clean                             remove app build output (DerivedData)
 EOF
 }
@@ -255,11 +258,38 @@ upload() {  # [curl args for the notes field]
     echo "==> uploaded (HTTP $code)"
 }
 
+# Game data payload: ./Data -> Documents/Data (Morrowind.ini is not part of it: the user copies it to Config/).
+documents() {  # <zip|install>
+    [ -d "$REPO/Data" ] || die "no payload: $REPO/Data missing"
+    if [ "$1" = zip ]; then
+        mkdir -p "$DERIVED/ipa"
+        echo "==> DerivedData/ipa/Documents.zip"
+        # -FS: incremental, the zip mirrors Data/
+        (cd "$REPO" && zip -qr -FS "$DERIVED/ipa/Documents.zip" Data -x '*.DS_Store')
+        return
+    fi
+    echo "==> copy Data -> Documents/Data ($KIND $TARGET)"
+    if [ "$KIND" = simulator ]; then
+        local container
+        container=$(xcrun simctl get_app_container "$TARGET" "$BUNDLE_ID" data 2>/dev/null) \
+            || die "app not installed on $TARGET"
+        mkdir -p "$container/Documents/Data"
+        rsync -a --exclude .DS_Store "$REPO/Data/" "$container/Documents/Data/"
+    else
+        xcrun devicectl device info apps --quiet --device "$TARGET" --bundle-id "$BUNDLE_ID" -j - 2>/dev/null \
+            | python3 -c 'import json, sys; sys.exit(0 if json.load(sys.stdin)["result"]["apps"] else 1)' \
+            || die "app not installed on $TARGET"
+        # copies only modified files
+        xcrun devicectl device copy to --quiet --device "$TARGET" --domain-type appDataContainer \
+            --domain-identifier "$BUNDLE_ID" --source "$REPO/Data" --destination Documents/Data
+    fi
+}
+
 [ $# -eq 0 ] && { usage; exit 0; }
 command=$1; shift
 case "$command" in
     -h|--help) usage; exit 0 ;;
-    build|install|run|ipa|upload|clean) ;;
+    build|install|run|ipa|upload|documents|clean) ;;
     *) usage >&2; exit 1 ;;
 esac
 
@@ -336,6 +366,13 @@ case "$command" in
         allow --notes
         [ ${#POSITIONAL[@]} -eq 0 ] || die "unexpected argument '${POSITIONAL[0]}'"
         upload "${NOTES[@]+"${NOTES[@]}"}" ;;
+    documents)
+        [ ${#POSITIONAL[@]} -eq 1 ] || die "usage: $SCRIPT documents zip | documents install [target]"
+        case "${POSITIONAL[0]}" in
+            zip) allow; documents zip ;;
+            install) allow target; resolve_target; documents install ;;
+            *) die "usage: $SCRIPT documents zip | documents install [target]" ;;
+        esac ;;
     clean)
         allow
         [ ${#POSITIONAL[@]} -eq 0 ] || die "unexpected argument '${POSITIONAL[0]}'"
