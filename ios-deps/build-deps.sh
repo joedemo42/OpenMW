@@ -23,7 +23,7 @@ Usage: $SCRIPT <command> [args]
 
   download   <all|dep>                          (re-)download source -> ios-deps/source
   build      <all|dep> [simulator|device|both]  build xcframework -> ios-deps/artifacts
-             fetches/extracts/patches what is missing, builds prerequisites first
+             fetches/extracts/patches what is missing, builds missing prerequisites first
              default: both
   clean      <all|dep>                          remove ios-deps/build/<dep> + its xcframeworks
   dist-clean <all|dep>                          clean + remove ios-deps/source/<dep>
@@ -155,13 +155,27 @@ cmd_download() {
     done
 }
 
+# True if every xcframework of <dep> has a slice for each requested target.
+artifacts_present() {  # <dep>
+    local name t slice
+    load_recipe "$1"
+    for name in "${DEP_ARTIFACTS[@]+"${DEP_ARTIFACTS[@]}"}"; do
+        for t in "${TARGETS[@]}"; do
+            slice=ios-arm64
+            [ "$t" = simulator ] && slice=ios-arm64-simulator
+            [ -d "$ARTIFACTS_DIR/$name.xcframework/$slice" ] || return 1
+        done
+    done
+}
+
 BUILT=()
 build_dep() {
     local dep=$1 req target
     [[ " ${BUILT[*]-} " == *" $dep "* ]] && return 0
     load_recipe "$dep"
     local requires=("${DEP_REQUIRES[@]+"${DEP_REQUIRES[@]}"}")
-    for req in "${requires[@]+"${requires[@]}"}"; do build_dep "$req"; done
+    # prerequisites are only built when missing; 'build <prerequisite>' or 'build all' rebuilds them
+    for req in "${requires[@]+"${requires[@]}"}"; do artifacts_present "$req" || build_dep "$req"; done
     load_recipe "$dep"
     [ -d "$SOURCE_DIR/$dep" ] || { mkdir -p "$SOURCE_DIR"; echo "==> download $dep"; "${dep}_download"; }
     for target in "${TARGETS[@]}"; do
