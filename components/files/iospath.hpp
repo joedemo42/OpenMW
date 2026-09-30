@@ -20,8 +20,8 @@ namespace Files
     /**
      * \struct IosPath
      *
-     * Files the user edits or keeps (config, logs, saves) live in the app's Documents directory, which the Files app
-     * shows; everything else in the container's Library, as on macOS.
+     * Files the user edits or keeps (config, logs, saves, screenshots) live in the app's Documents directory, which
+     * the Files app shows; everything else in the container's Library, as on macOS.
      */
     struct IosPath
     {
@@ -53,6 +53,8 @@ namespace Files
         std::filesystem::path getLogPath() const;
 
         std::filesystem::path getSavesPath() const;
+
+        std::filesystem::path getScreenshotPath() const;
 
         std::string mName;
     };

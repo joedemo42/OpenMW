@@ -83,6 +83,8 @@ namespace Files
                 mLogPath = mPath.getLogPath();
             if constexpr (requires { mPath.getSavesPath(); })
                 mSavesPath = mPath.getSavesPath();
+            if constexpr (requires { mPath.getScreenshotPath(); })
+                mScreenshotPath = mPath.getScreenshotPath();
         }
 
         /**
@@ -118,6 +120,11 @@ namespace Files
          */
         const std::filesystem::path& getSavesPath() const { return mSavesPath; }
 
+        /**
+         * \brief Return the platform's screenshots directory, empty if screenshots go to the user data directory.
+         */
+        const std::filesystem::path& getScreenshotPath() const { return mScreenshotPath; }
+
     private:
         PathType mPath;
 
@@ -132,6 +139,7 @@ namespace Files
 
         std::filesystem::path mLogPath;
         std::filesystem::path mSavesPath;
+        std::filesystem::path mScreenshotPath;
     };
 
 } /* namespace Files */

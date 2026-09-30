@@ -81,6 +81,11 @@ namespace Files
         return getHome() / "Documents" / "Saves";
     }
 
+    std::filesystem::path IosPath::getScreenshotPath() const
+    {
+        return getHome() / "Documents" / "Screenshots";
+    }
+
 } /* namespace Files */
 
 #endif /* defined(__APPLE__) && TARGET_OS_IPHONE */

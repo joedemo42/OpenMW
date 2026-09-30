@@ -145,7 +145,8 @@ namespace Files
                 Log(Debug::Warning) << "Error: `user-data` is not specified";
             mUserDataPath = mFixedPath.getUserDataPath();
         }
-        mScreenshotPath = mUserDataPath / "screenshots";
+        mScreenshotPath
+            = mFixedPath.getScreenshotPath().empty() ? mUserDataPath / "screenshots" : mFixedPath.getScreenshotPath();
 
         std::filesystem::create_directories(getUserConfigPath());
         std::filesystem::create_directories(getLogPath());
