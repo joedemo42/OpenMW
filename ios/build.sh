@@ -134,6 +134,7 @@ for runtime, devices in json.load(sys.stdin)["devices"].items():
     for d in devices:
         if want in (d["name"], d["udid"]):
             print(d["udid"]); sys.exit(0)
+sys.exit(1)
 ' "$TARGET") || die "simulator '$TARGET' not found"
     TARGET=$udid
     xcrun simctl bootstatus "$TARGET" -b > /dev/null
