@@ -22,7 +22,8 @@ Target options: --simulator <name|UDID> | --device <name|UDID>  (default: $DEFAU
           build + install + run non-interactively (default: 45 s), logs + screenshot -> log/
           --no-build: use last build. --no-install: launch installed app (implies --no-build)
   ipa     [--unsigned]              device build -> IPA in DerivedData/ipa
-  upload                            signed IPA of current tree -> archive/ -> repo server
+  upload  [--notes <text>|--notes-file <path>]
+          signed IPA of current tree + release notes ("What's New") -> archive/ -> repo server
   clean                             remove app build output (DerivedData)
 EOF
 }
@@ -242,13 +243,13 @@ build_unsigned() {
     xcbuild iphoneos -destination "generic/platform=iOS" CODE_SIGNING_ALLOWED=NO
 }
 
-upload() {
+upload() {  # [curl args for the notes field]
     make_ipa
     mkdir -p "$REPO/archive"
     local name="Morrowind-$(version)-$BUILD_NUMBER.ipa" code
     cp "$IPA" "$REPO/archive/$name"
     echo "==> upload archive/$name"
-    code=$(cd "$REPO" && curl -sS -o /dev/null -w '%{http_code}' -F "file=@archive/$name" "$REPO_SERVER") \
+    code=$(cd "$REPO" && curl -sS -o /dev/null -w '%{http_code}' -F "file=@archive/$name" "$@" "$REPO_SERVER") \
         || die "upload failed"
     [ "$code" -lt 400 ] || die "upload failed (HTTP $code)"
     echo "==> uploaded (HTTP $code)"
@@ -263,7 +264,7 @@ case "$command" in
 esac
 
 # Common option parsing.
-POSITIONAL=() APP_ARGS=() NO_BUILD= NO_INSTALL= UNSIGNED= SECONDS_ARG=45 LABEL=screenshot
+POSITIONAL=() APP_ARGS=() NO_BUILD= NO_INSTALL= UNSIGNED= SECONDS_ARG=45 LABEL=screenshot NOTES=()
 while [ $# -gt 0 ]; do
     case "$1" in
         --simulator) [ $# -ge 2 ] || die "--simulator needs <name|UDID>"; KIND=simulator; TARGET=$2; shift ;;
@@ -273,6 +274,16 @@ while [ $# -gt 0 ]; do
         --unsigned) UNSIGNED=--unsigned ;;
         --seconds) [ $# -ge 2 ] || die "--seconds needs a value"; SECONDS_ARG=$2; shift ;;
         --label) [ $# -ge 2 ] || die "--label needs a name"; LABEL=$2; shift ;;
+        --notes|--notes-file)
+            [ $# -ge 2 ] || die "$1 needs a value"
+            [ ${#NOTES[@]} -eq 0 ] || die "--notes and --notes-file are mutually exclusive"
+            if [ "$1" = --notes ]; then
+                NOTES=(--form-string "notes=$2")  # literal, no @/< parsing
+            else
+                [ -f "$2" ] || die "notes file '$2' not found"
+                NOTES=(-F "notes=<$(cd "$(dirname "$2")" && pwd)/$(basename "$2")")
+            fi
+            shift ;;
         --) shift; APP_ARGS=("$@"); break ;;
         -*) die "unknown option '$1'" ;;
         *) POSITIONAL+=("$1") ;;
@@ -289,6 +300,7 @@ allow() {  # <allowed options...>: reject options not valid for this command
     [ "$SECONDS_ARG" != 45 ] && given+=(--seconds)
     [ "$LABEL" != screenshot ] && given+=(--label)
     [ ${#APP_ARGS[@]} -gt 0 ] && given+=(--)
+    [ ${#NOTES[@]} -gt 0 ] && given+=(--notes)
     for opt in "${given[@]+"${given[@]}"}"; do
         [[ " $* " == *" $opt "* ]] || die "'$opt' is not valid for '$command'"
     done
@@ -321,9 +333,9 @@ case "$command" in
         [ ${#POSITIONAL[@]} -eq 0 ] || die "unexpected argument '${POSITIONAL[0]}'"
         make_ipa $UNSIGNED ;;
     upload)
-        allow
+        allow --notes
         [ ${#POSITIONAL[@]} -eq 0 ] || die "unexpected argument '${POSITIONAL[0]}'"
-        upload ;;
+        upload "${NOTES[@]+"${NOTES[@]}"}" ;;
     clean)
         allow
         [ ${#POSITIONAL[@]} -eq 0 ] || die "unexpected argument '${POSITIONAL[0]}'"

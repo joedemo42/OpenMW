@@ -20,7 +20,7 @@ Usage: $SCRIPT <command> [args] [options]
     install [target] [--no-build]
     run     [target] [--seconds <1-45>] [--label <name>] [--no-build] [--no-install] [-- <app args>]
     ipa     [--unsigned]
-    upload                                        signed IPA -> repo server
+    upload  [--notes <text>|--notes-file <path>]  signed IPA + release notes -> repo server
 
   clean [app|deps|all]       default: app
 
