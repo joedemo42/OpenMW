@@ -162,6 +162,10 @@ run_app() {  # <seconds> <label> [app args]
     else
         echo "warning: app exited after ${waited}s" >&2
     fi
+    # devicectl --console does not always exit after the app has terminated
+    waited=0
+    while kill -0 $pid 2>/dev/null && [ $waited -lt 10 ]; do sleep 1; waited=$((waited + 1)); done
+    kill -KILL $pid 2>/dev/null || true
     wait $pid 2>/dev/null || true
     if [ "$KIND" = simulator ]; then
         xcrun simctl spawn "$TARGET" log show --style compact --start "$(date -r "$start" '+%Y-%m-%d %H:%M:%S')" \
