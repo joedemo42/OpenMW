@@ -3,8 +3,12 @@
 
 #include <filesystem>
 
-#if (defined(__APPLE__) || (defined(__linux) && !defined(ANDROID)) || (defined(__unix) && !defined(ANDROID))           \
-    || defined(__posix))
+#ifdef __APPLE__
+#include <TargetConditionals.h>
+#endif
+
+#if ((defined(__APPLE__) && !TARGET_OS_IPHONE) || (defined(__linux) && !defined(ANDROID))                              \
+    || (defined(__unix) && !defined(ANDROID)) || defined(__posix))
 void crashCatcherInstall(int argc, char** argv, const std::filesystem::path& crashLogPath);
 #else
 inline void crashCatcherInstall(int /*argc*/, char** /*argv*/, const std::filesystem::path& /*crashLogPath*/) {}

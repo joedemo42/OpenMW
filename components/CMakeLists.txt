@@ -399,7 +399,7 @@ if(WIN32)
         windowscrashmonitor
         windowscrashshm
     )
-elseif(NOT ANDROID)
+elseif(NOT ANDROID AND NOT IOS)
     add_component_dir (crashcatcher
         crashcatcher
     )
