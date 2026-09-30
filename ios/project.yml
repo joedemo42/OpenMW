@@ -78,8 +78,8 @@ targets:
         # OpenMW includes SDL headers without the SDL2/ prefix and its own headers from the repository root
         HEADER_SEARCH_PATHS: ["$(BUILT_PRODUCTS_DIR)/include/SDL2", "$(SRCROOT)/.."]
         GCC_PREPROCESSOR_DEFINITIONS: ["$(inherited)", "OSG_LIBRARY_STATIC"]
-        # as OpenMW links on Apple (OSG plugins register themselves in static initializers); every object of
-        # every archive gets linked, so the link also checks the dependencies for unresolved/duplicate symbols
+        # as OpenMW links on Apple (OSG plugins register themselves in static initializers). Release dead-strips
+        # unreferenced objects and ignores their unresolved/duplicate symbols (FIXES #18)
         OTHER_LDFLAGS: ["$(inherited)", "-all_load"]
         # overridden by ios/build.sh
         MARKETING_VERSION: "0.0.0"
