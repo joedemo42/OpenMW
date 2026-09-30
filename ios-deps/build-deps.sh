@@ -15,7 +15,7 @@ ARTIFACTS_DIR="$DEPS_DIR/artifacts"
 SCRIPT="${0#"$PWD/"}"
 
 # Build order: every dependency after its prerequisites.
-DEPS=(moltenvk mesa sdl2 libpng libjpeg-turbo freetype osg lz4 boost yaml-cpp bullet mygui recastnavigation)
+DEPS=(moltenvk mesa sdl2 libpng libjpeg-turbo freetype osg lz4 boost yaml-cpp bullet mygui recastnavigation icu)
 
 usage() {
     cat <<EOF
@@ -96,6 +96,17 @@ cmake_build() {  # <source dir> [cmake args...]
         -DCMAKE_INSTALL_PREFIX="$TARGET_DIR/install" "$@"
     cmake --build "$TARGET_DIR/build" -j "$JOBS"
     cmake --install "$TARGET_DIR/build" > /dev/null
+}
+
+# Configures an autoconf-style project in <build dir>, from scratch when the arguments change (configure rewrites
+# every generated file, so running it again would rebuild everything).
+configure_build() {  # <build dir> <configure script> [args...]
+    local build=$1 stamp; shift
+    stamp=$(printf '%s\n' "$@")
+    [ -f "$build/Makefile" ] && [ "$(cat "$build/.configured" 2>/dev/null)" = "$stamp" ] && return
+    rm -rf "$build" && mkdir -p "$build"
+    (cd "$build" && "$@")
+    echo "$stamp" > "$build/.configured"
 }
 
 # Creates artifacts/<name>.xcframework from build/<dep>/<target>/<lib> (+ <headers> dir)
