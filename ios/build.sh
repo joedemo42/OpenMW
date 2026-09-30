@@ -48,11 +48,11 @@ next_build_number() {
 }
 
 # Builds the dependency xcframeworks if a slice for <target> is missing (incremental).
-DEP_XCFRAMEWORKS=(MoltenVK Mesa SDL2 SDL2main)
 ensure_deps() {  # <simulator|device>
     local slice=ios-arm64 name
     [ "$1" = simulator ] && slice=ios-arm64-simulator
-    for name in "${DEP_XCFRAMEWORKS[@]}"; do
+    # the xcframeworks the app links (ios/project.yml)
+    for name in $(sed -n 's|.*ios-deps/artifacts/\(.*\)\.xcframework$|\1|p' "$REPO/ios/project.yml"); do
         if [ ! -d "$REPO/ios-deps/artifacts/$name.xcframework/$slice" ]; then
             "$REPO/ios-deps/build-deps.sh" build all "$1"
             return
