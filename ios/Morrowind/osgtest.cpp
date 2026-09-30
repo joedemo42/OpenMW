@@ -1,7 +1,7 @@
 // OSG bring-up test (temporary, replaced by the OpenMW entry point): OpenSceneGraph on the desktop GL context of
 // SDL's UIKit EGL backend, set up the way OpenMW's engine.cpp does it (its SDL graphics window, osgViewer's default
-// threading = draw thread per context). Checks the statically linked plugins, FreeType and what the GPU renders;
-// logs one PASS/FAIL line per check and a summary.
+// threading = draw thread per context). Checks the statically linked plugins, FreeType and what the GPU renders,
+// plus the scripting and media libraries (libtest.cpp); logs one PASS/FAIL line per check and a summary.
 #include <SDL2/SDL.h>
 
 #include <osg/GLExtensions>
@@ -21,6 +21,8 @@
 #include <sstream>
 #include <string>
 #include <vector>
+
+int checkLibraries(const std::string& dataDir); // libtest.cpp, returns the number of failures
 
 namespace
 {
@@ -345,6 +347,7 @@ int main(int argc, char* argv[])
     char* basePath = SDL_GetBasePath();
     const osg::ref_ptr<osgText::Font> font = checkFont(std::string(basePath ? basePath : "") + "DejaVuLGCSansMono.ttf");
     SDL_free(basePath);
+    failures += checkLibraries(argc > 1 ? argv[1] : ""); // argument: game data directory (optional)
 
     osg::ref_ptr<osg::GraphicsContext::Traits> traits = new osg::GraphicsContext::Traits;
     SDL_GetWindowPosition(window, &traits->x, &traits->y);
