@@ -66,11 +66,12 @@ fetch_git() {  # <repo> <tag> <commit>
 }
 
 # Fills build/<dep>/src from source/<dep> (tarball or tree) and applies patches/<dep>/*.patch.
-# Re-prepares (and drops old build output) when the patch set changes.
+# Re-prepares (and drops old build output) when the source version or the patch set changes.
 prepare_source() {  # <tarball name | ->  ('-' copies the source tree)
-    local dir="$BUILD_DIR/$DEP" stamp patches p
-    patches=$( (cat "$DEPS_DIR/patches/$DEP"/*.patch 2>/dev/null || true) | shasum -a 256 | cut -d' ' -f1)
-    [ "$(cat "$dir/.prepared" 2>/dev/null)" = "$patches" ] && return
+    local dir="$BUILD_DIR/$DEP" stamp p
+    [ "$1" = - ] || [ -f "$SOURCE_DIR/$DEP/$1" ] || { echo "==> download $DEP"; "${DEP}_download"; }
+    stamp="$1 $( (cat "$DEPS_DIR/patches/$DEP"/*.patch 2>/dev/null || true) | shasum -a 256 | cut -d' ' -f1)"
+    [ "$(cat "$dir/.prepared" 2>/dev/null)" = "$stamp" ] && return
     rm -rf "$dir" && mkdir -p "$dir/src"
     if [ "$1" = - ]; then
         rsync -a --exclude .git "$SOURCE_DIR/$DEP/" "$dir/src/"
@@ -82,7 +83,7 @@ prepare_source() {  # <tarball name | ->  ('-' copies the source tree)
         echo "==> patch $DEP: $(basename "$p")"
         patch -d "$dir/src" -p1 --forward --batch < "$p" > /dev/null || die "patch $(basename "$p") failed"
     done
-    echo "$patches" > "$dir/.prepared"
+    echo "$stamp" > "$dir/.prepared"
 }
 
 # Configures, builds and installs a CMake project for the current target (after target_env)
