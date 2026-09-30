@@ -308,6 +308,9 @@ set(USED_OSG_PLUGINS
     osgdb_png
     osgdb_serializers_osg
     osgdb_tga)
+if (IOS)  # no COLLADA DOM for iOS
+    list(REMOVE_ITEM USED_OSG_PLUGINS osgdb_dae)
+endif()
 
 option(OPENMW_USE_SYSTEM_ICU "Use system ICU library instead of internal. If disabled, requires autotools" ON)
 if(OPENMW_USE_SYSTEM_ICU)
@@ -539,7 +542,7 @@ if (APPLE)
         "${APP_BUNDLE_DIR}/Contents/Resources/OpenMW.icns" COPYONLY)
 endif (APPLE)
 
-if (NOT APPLE)  # this is modified for macOS use later in "apps/open[mw|cs]/CMakeLists.txt"
+if (NOT APPLE OR IOS)  # this is modified for macOS use later in "apps/open[mw|cs]/CMakeLists.txt"
     set(OPENMW_RESOURCES_ROOT ${OpenMW_BINARY_DIR})
 endif ()
 
@@ -574,7 +577,7 @@ pack_resource_file(${OpenMW_SOURCE_DIR}/files/settings-default.cfg
 configure_resource_file(${OpenMW_SOURCE_DIR}/files/openmw.appdata.xml
     "${OpenMW_BINARY_DIR}" "openmw.appdata.xml")
 
-if (APPLE)
+if (APPLE AND NOT IOS)
     configure_file(${OpenMW_SOURCE_DIR}/files/openmw.cfg
         "${OpenMW_BINARY_DIR}/openmw.cfg")
 else ()
@@ -803,7 +806,7 @@ endif()
 set(CPACK_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}-${CPACK_PACKAGE_VERSION}-${CUSTOM_CPACK_OS_NAME}-${CUSTOM_CPACK_ARCHITECTURE}")
 
 # Apple bundling
-if (APPLE)
+if (APPLE AND NOT IOS)
     if(CMAKE_VERSION VERSION_LESS 3.19)
         message(FATAL_ERROR "macOS packaging requires CMake 3.19 or higher to sign macOS app bundles.")
     endif()
@@ -1046,7 +1049,7 @@ elseif(NOT APPLE)
     endif ()
 
     install(DIRECTORY "${RUNTIME_OUTPUT_DIRECTORY}/resources" TYPE DATA)
-endif(APPLE)
+endif()
 
 # what is necessary to build documentation
 if ( BUILD_DOCS )

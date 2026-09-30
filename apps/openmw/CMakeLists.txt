@@ -145,6 +145,11 @@ if(BUILD_OPENMW)
             main.cpp
             androidmain.cpp
         )
+    elseif (IOS)
+        # linked by the iOS app host (ios/), whose SDL2main provides main()
+        add_library(openmw STATIC
+            main.cpp
+        )
     else()
         openmw_add_executable(openmw
             ${APPLE_BUNDLE_RESOURCES}
@@ -234,7 +239,7 @@ if (UNIX AND NOT APPLE)
     target_link_libraries(openmw-lib ${CMAKE_THREAD_LIBS_INIT})
 endif()
 
-if(APPLE AND BUILD_OPENMW)
+if(APPLE AND NOT IOS AND BUILD_OPENMW)
     set(BUNDLE_RESOURCES_DIR "${APP_BUNDLE_DIR}/Contents/Resources")
 
     set(OPENMW_RESOURCES_ROOT ${BUNDLE_RESOURCES_DIR})

@@ -1,9 +1,9 @@
 project (Components)
 
-if(APPLE)
+if(APPLE AND NOT IOS)
     set(BUNDLE_RESOURCES_DIR "${APP_BUNDLE_DIR}/Contents/Resources")
     set(OPENMW_RESOURCES_ROOT ${BUNDLE_RESOURCES_DIR})
-endif(APPLE)
+endif()
 
 # Version file
 set (VERSION_RESOURCE_FILE_IN "${OpenMW_SOURCE_DIR}/files/version.in")
