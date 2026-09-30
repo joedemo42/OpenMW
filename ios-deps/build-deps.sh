@@ -15,7 +15,7 @@ ARTIFACTS_DIR="$DEPS_DIR/artifacts"
 SCRIPT="${0#"$PWD/"}"
 
 # Build order: every dependency after its prerequisites.
-DEPS=(moltenvk mesa sdl2 libpng libjpeg-turbo freetype osg lz4 boost yaml-cpp bullet mygui recastnavigation icu luajit)
+DEPS=(moltenvk mesa sdl2 libpng libjpeg-turbo freetype osg lz4 boost yaml-cpp bullet mygui recastnavigation icu luajit ffmpeg)
 
 usage() {
     cat <<EOF
