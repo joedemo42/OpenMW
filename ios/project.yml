@@ -15,6 +15,33 @@ targets:
     platform: iOS
     sources:
       - Morrowind
+    dependencies:
+      - framework: ../ios-deps/artifacts/SDL2.xcframework
+        embed: false
+      - framework: ../ios-deps/artifacts/SDL2main.xcframework
+        embed: false
+      - framework: ../ios-deps/artifacts/Mesa.xcframework
+        embed: false
+      - framework: ../ios-deps/artifacts/MoltenVK.xcframework
+        embed: false
+      - sdk: AudioToolbox.framework
+      - sdk: AVFoundation.framework
+      - sdk: CoreAudio.framework
+      - sdk: CoreBluetooth.framework
+      - sdk: CoreGraphics.framework
+      - sdk: CoreHaptics.framework
+        weak: true
+      - sdk: CoreMotion.framework
+      - sdk: CoreVideo.framework
+      - sdk: Foundation.framework
+      - sdk: GameController.framework
+        weak: true
+      - sdk: IOSurface.framework
+      - sdk: Metal.framework
+      - sdk: QuartzCore.framework
+      - sdk: UIKit.framework
+      - sdk: libc++.tbd
+      - sdk: libz.tbd
     settings:
       base:
         PRODUCT_NAME: Morrowind
