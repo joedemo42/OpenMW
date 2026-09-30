@@ -9,8 +9,10 @@ sdl2_download() {
 sdl2_build() {  # <simulator|device>
     prepare_source SDL2-2.32.10.tar.gz
     target_env "$1"
-    # no OpenGL/GLES backends: GL comes from Mesa (EGL), and OpenGLES.framework would export a second set of gl*
-    cmake_build "$BUILD_DIR/sdl2/src" -DSDL_SHARED=OFF -DSDL_STATIC=ON -DSDL_TEST=OFF -DSDL_OPENGL=OFF -DSDL_OPENGLES=OFF
+    # desktop OpenGL through Mesa's EGL (patch 0002, SDL_UIKIT_EGL); no OpenGL ES backend, whose
+    # OpenGLES.framework would export a second set of gl* symbols. EGL/GL symbols resolve at app link time.
+    cmake_build "$BUILD_DIR/sdl2/src" -DSDL_SHARED=OFF -DSDL_STATIC=ON -DSDL_TEST=OFF \
+        -DSDL_OPENGL=OFF -DSDL_OPENGLES=OFF -DSDL_UIKIT_EGL=ON
 }
 
 sdl2_xcframework() {
