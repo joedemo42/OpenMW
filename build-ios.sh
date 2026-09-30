@@ -17,8 +17,8 @@ Usage: $SCRIPT <command> [args] [options]
 
   app (ios/build.sh), target: --simulator <name|UDID> | --device <name|UDID>
     build   [simulator|device|both]               default: simulator
-    install [target] [--no-build]
-    run     [target] [--seconds <1-45>] [--label <name>] [--no-build] [--no-install] [-- <app args>]
+    install [target]
+    run     [target] [--seconds <1-45>] [--label <name>] [-- <app args>]
     ipa     [--unsigned]
     upload  [--notes <text>|--notes-file <path>]  signed IPA + release notes -> repo server
     documents zip | documents install [target]    game data payload (./Data) -> Documents.zip | installed app

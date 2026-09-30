@@ -17,13 +17,13 @@ Usage: $SCRIPT <command> [args] [options]
 Target options: --simulator <name|UDID> | --device <name|UDID>  (default: $DEFAULT_SIMULATOR simulator)
 
   build   [simulator|device|both]   build app, increments build number once. default: simulator
-  install [target] [--no-build]     build + install app
-  run     [target] [--seconds <1-45>] [--label <name>] [--no-build] [--no-install] [-- <app args>]
-          build + install + run non-interactively (default: 45 s), logs + screenshot -> log/
-          --no-build: use last build. --no-install: launch installed app (implies --no-build)
-  ipa     [--unsigned]              device build -> IPA in DerivedData/ipa
+  install [target]                  install current build (CFBundleVersion = ios/BUILD_NUMBER) on target
+                                    no matching build -> exit 1
+  run     [target] [--seconds <1-45>] [--label <name>] [-- <app args>]
+          run installed app non-interactively (default: 45 s), logs + screenshot -> log/. not installed -> exit 1
+  ipa     [--unsigned]              current device build -> IPA in DerivedData/ipa. no matching build -> exit 1
   upload  [--notes <text>|--notes-file <path>]
-          signed IPA of current tree + release notes ("What's New") -> archive/ -> repo server
+          ipa + release notes ("What's New") -> archive/ -> repo server. no matching device build -> exit 1
   documents zip                     game data payload (./Data -> Data/) -> DerivedData/ipa/Documents.zip
   documents install [target]        copy the payload into the installed app's Documents, no reinstall
                                     (app not installed -> abort; overwrites, deletes nothing)
@@ -115,6 +115,16 @@ app_path() {  # <simulator|device>
     echo "$DERIVED/Build/Products/Release-$sdk/Morrowind.app"
 }
 
+# Current build = the app in DerivedData whose CFBundleVersion equals ios/BUILD_NUMBER; sets BUILD_NUMBER.
+require_build() {  # <simulator|device>
+    local expected found
+    expected=$(cat "$REPO/ios/BUILD_NUMBER" 2>/dev/null || true)
+    found=$(plutil -extract CFBundleVersion raw "$(app_path "$1")/Info.plist" 2>/dev/null || true)
+    [ -n "$expected" ] && [ "$found" = "$expected" ] || die "no current $1 build: expected build ${expected:-none}" \
+        "(ios/BUILD_NUMBER), found ${found:-none} in DerivedData. run '$SCRIPT build $1'"
+    BUILD_NUMBER=$expected
+}
+
 build() {  # <simulator|device|both>
     case "$1" in
         simulator) xcbuild iphonesimulator -destination "generic/platform=iOS Simulator" ;;
@@ -147,13 +157,21 @@ sys.exit(1)
 install_app() {
     local app
     app=$(app_path "$KIND")
-    [ -d "$app" ] || die "no $KIND build found, run '$SCRIPT build $KIND'"
-    echo "==> install $KIND $TARGET"
+    echo "==> install $KIND $TARGET (build $BUILD_NUMBER)"
     if [ "$KIND" = simulator ]; then
         xcrun simctl install "$TARGET" "$app"
     else
         xcrun devicectl device install app --quiet --device "$TARGET" "$app"
     fi
+}
+
+require_installed() {
+    if [ "$KIND" = simulator ]; then
+        xcrun simctl get_app_container "$TARGET" "$BUNDLE_ID" > /dev/null 2>&1
+    else
+        xcrun devicectl device info apps --quiet --device "$TARGET" --bundle-id "$BUNDLE_ID" -j - 2>/dev/null \
+            | python3 -c 'import json, sys; sys.exit(0 if json.load(sys.stdin)["result"]["apps"] else 1)'
+    fi || die "app not installed on $KIND $TARGET. run '$SCRIPT install'"
 }
 
 screenshot() {  # <file>
@@ -213,37 +231,21 @@ run_app() {  # <seconds> <label> [app args]
     echo "==> logs in log/ (debugger.log$([ -f "$shot" ] && echo ", $label.png"))"
 }
 
+# Packages the current device build as is (signed by 'build': Apple Development, team profile).
 make_ipa() {  # [--unsigned]
-    local out="$DERIVED/ipa"
-    mkdir -p "$out"
+    require_build device
+    local out="$DERIVED/ipa" name=Morrowind.ipa
+    [ "${1:-}" = --unsigned ] && name=Morrowind-unsigned.ipa
+    rm -rf "$out/Payload" && mkdir -p "$out/Payload"
+    cp -R "$(app_path device)" "$out/Payload/"
     if [ "${1:-}" = --unsigned ]; then
-        build_unsigned
-        rm -rf "$out/Payload" && mkdir -p "$out/Payload"
-        cp -R "$(app_path device)" "$out/Payload/"
-        (cd "$out" && rm -f Morrowind-unsigned.ipa && zip -qry Morrowind-unsigned.ipa Payload && rm -rf Payload)
-        IPA="$out/Morrowind-unsigned.ipa"
-    else
-        xcbuild iphoneos -destination "generic/platform=iOS" -archivePath "$out/Morrowind.xcarchive" archive
-        cat > "$out/ExportOptions.plist" <<EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0"><dict>
-<key>method</key><string>debugging</string>
-<key>teamID</key><string></string>
-<key>signingStyle</key><string>automatic</string>
-</dict></plist>
-EOF
-        rm -f "$out/Morrowind.ipa"
-        xcodebuild -exportArchive -archivePath "$out/Morrowind.xcarchive" -exportPath "$out" \
-            -exportOptionsPlist "$out/ExportOptions.plist" -allowProvisioningUpdates -quiet
-        IPA="$out/Morrowind.ipa"
+        codesign --remove-signature "$out/Payload/Morrowind.app"
+        rm -rf "$out/Payload/Morrowind.app/_CodeSignature" "$out/Payload/Morrowind.app/embedded.mobileprovision"
     fi
+    (cd "$out" && rm -f "$name" && zip -qry "$name" Payload && rm -rf Payload)
+    IPA="$out/$name"
     [ -f "$IPA" ] || die "IPA not created"
-    echo "==> $IPA"
-}
-
-build_unsigned() {
-    xcbuild iphoneos -destination "generic/platform=iOS" CODE_SIGNING_ALLOWED=NO
+    echo "==> $IPA (build $BUILD_NUMBER)"
 }
 
 upload() {  # [curl args for the notes field]
@@ -268,17 +270,14 @@ documents() {  # <zip|install>
         (cd "$REPO" && zip -qr -FS "$DERIVED/ipa/Documents.zip" Data -x '*.DS_Store')
         return
     fi
+    require_installed
     echo "==> copy Data -> Documents/Data ($KIND $TARGET)"
     if [ "$KIND" = simulator ]; then
         local container
-        container=$(xcrun simctl get_app_container "$TARGET" "$BUNDLE_ID" data 2>/dev/null) \
-            || die "app not installed on $TARGET"
+        container=$(xcrun simctl get_app_container "$TARGET" "$BUNDLE_ID" data)
         mkdir -p "$container/Documents/Data"
         rsync -a --exclude .DS_Store "$REPO/Data/" "$container/Documents/Data/"
     else
-        xcrun devicectl device info apps --quiet --device "$TARGET" --bundle-id "$BUNDLE_ID" -j - 2>/dev/null \
-            | python3 -c 'import json, sys; sys.exit(0 if json.load(sys.stdin)["result"]["apps"] else 1)' \
-            || die "app not installed on $TARGET"
         # copies only modified files
         xcrun devicectl device copy to --quiet --device "$TARGET" --domain-type appDataContainer \
             --domain-identifier "$BUNDLE_ID" --source "$REPO/Data" --destination Documents/Data
@@ -294,13 +293,11 @@ case "$command" in
 esac
 
 # Common option parsing.
-POSITIONAL=() APP_ARGS=() NO_BUILD= NO_INSTALL= UNSIGNED= SECONDS_ARG=45 LABEL=screenshot NOTES=()
+POSITIONAL=() APP_ARGS=() UNSIGNED= SECONDS_ARG=45 LABEL=screenshot NOTES=()
 while [ $# -gt 0 ]; do
     case "$1" in
         --simulator) [ $# -ge 2 ] || die "--simulator needs <name|UDID>"; KIND=simulator; TARGET=$2; shift ;;
         --device) [ $# -ge 2 ] || die "--device needs <name|UDID>"; KIND=device; TARGET=$2; shift ;;
-        --no-build) NO_BUILD=1 ;;
-        --no-install) NO_INSTALL=1; NO_BUILD=1 ;;
         --unsigned) UNSIGNED=--unsigned ;;
         --seconds) [ $# -ge 2 ] || die "--seconds needs a value"; SECONDS_ARG=$2; shift ;;
         --label) [ $# -ge 2 ] || die "--label needs a name"; LABEL=$2; shift ;;
@@ -324,8 +321,6 @@ done
 allow() {  # <allowed options...>: reject options not valid for this command
     local given=() opt
     [ "$KIND$TARGET" != "simulator$DEFAULT_SIMULATOR" ] && given+=(target)
-    [ -n "$NO_BUILD" ] && [ -z "$NO_INSTALL" ] && given+=(--no-build)
-    [ -n "$NO_INSTALL" ] && given+=(--no-install)
     [ -n "$UNSIGNED" ] && given+=(--unsigned)
     [ "$SECONDS_ARG" != 45 ] && given+=(--seconds)
     [ "$LABEL" != screenshot ] && given+=(--label)
@@ -343,20 +338,19 @@ case "$command" in
         target=${POSITIONAL[0]:-simulator}
         case "$target" in simulator|device|both) build "$target" ;; *) die "unknown target '$target'" ;; esac ;;
     install)
-        allow target --no-build
+        allow target
         [ ${#POSITIONAL[@]} -eq 0 ] || die "unexpected argument '${POSITIONAL[0]}'"
+        require_build "$KIND"
         resolve_target
-        [ -n "$NO_BUILD" ] || build "$KIND"
         install_app ;;
     run)
-        allow target --no-build --no-install --seconds --label --
+        allow target --seconds --label --
         [ ${#POSITIONAL[@]} -eq 0 ] || die "unexpected argument '${POSITIONAL[0]}'"
         [[ "$SECONDS_ARG" =~ ^[0-9]+$ ]] && [ "$SECONDS_ARG" -ge 1 ] && [ "$SECONDS_ARG" -le 45 ] \
             || die "--seconds must be 1-45"
         [[ "$LABEL" =~ ^[A-Za-z0-9._-]+$ ]] || die "--label must match [A-Za-z0-9._-]+"
         resolve_target
-        [ -n "$NO_BUILD" ] || build "$KIND"
-        [ -n "$NO_INSTALL" ] || install_app
+        require_installed
         run_app "$SECONDS_ARG" "$LABEL" "${APP_ARGS[@]+"${APP_ARGS[@]}"}" ;;
     ipa)
         allow --unsigned
