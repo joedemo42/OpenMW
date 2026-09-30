@@ -148,6 +148,7 @@ namespace Files
         mScreenshotPath = mUserDataPath / "screenshots";
 
         std::filesystem::create_directories(getUserConfigPath());
+        std::filesystem::create_directories(getLogPath());
         std::filesystem::create_directories(mScreenshotPath);
 
         // probably not necessary but validate the creation of the screenshots directory and fallback to the original
@@ -157,7 +158,7 @@ namespace Files
 
         if (!quiet)
         {
-            Log(Debug::Info) << "Logs dir: " << getUserConfigPath();
+            Log(Debug::Info) << "Logs dir: " << getLogPath();
             Log(Debug::Info) << "User data dir: " << mUserDataPath;
             Log(Debug::Info) << "Screenshots dir: " << mScreenshotPath;
         }

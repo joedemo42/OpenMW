@@ -5,6 +5,10 @@
 #include <string>
 #include <vector>
 
+#ifdef __APPLE__
+#include <TargetConditionals.h>
+#endif
+
 #if defined(__linux__) || defined(__FreeBSD__) || defined(__FreeBSD_kernel__) || defined(__OpenBSD__)
 #ifndef ANDROID
 #include <components/files/linuxpath.hpp>
@@ -24,6 +28,13 @@ namespace Files
 namespace Files
 {
     typedef WindowsPath TargetPathType;
+}
+
+#elif defined(__APPLE__) && TARGET_OS_IPHONE
+#include <components/files/iospath.hpp>
+namespace Files
+{
+    typedef IosPath TargetPathType;
 }
 
 #elif defined(macintosh) || defined(Macintosh) || defined(__APPLE__) || defined(__MACH__)
@@ -68,6 +79,10 @@ namespace Files
             , mGlobalDataPath(mPath.getGlobalDataPath())
             , mCachePath(mPath.getCachePath())
         {
+            if constexpr (requires { mPath.getLogPath(); })
+                mLogPath = mPath.getLogPath();
+            if constexpr (requires { mPath.getSavesPath(); })
+                mSavesPath = mPath.getSavesPath();
         }
 
         /**
@@ -93,6 +108,16 @@ namespace Files
 
         const std::filesystem::path& getCachePath() const { return mCachePath; }
 
+        /**
+         * \brief Return the platform's log directory, empty if logs go to the user configuration directory.
+         */
+        const std::filesystem::path& getLogPath() const { return mLogPath; }
+
+        /**
+         * \brief Return the platform's saves directory, empty if saves go to the user data directory.
+         */
+        const std::filesystem::path& getSavesPath() const { return mSavesPath; }
+
     private:
         PathType mPath;
 
@@ -104,6 +129,9 @@ namespace Files
         std::filesystem::path mGlobalDataPath; /**< Global application data path */
 
         std::filesystem::path mCachePath;
+
+        std::filesystem::path mLogPath;
+        std::filesystem::path mSavesPath;
     };
 
 } /* namespace Files */

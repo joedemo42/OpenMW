@@ -729,7 +729,7 @@ void OMW::Engine::setWindowIcon()
 
 void OMW::Engine::prepareEngine()
 {
-    mStateManager = std::make_unique<MWState::StateManager>(mCfgMgr.getUserDataPath() / "saves", mContentFiles);
+    mStateManager = std::make_unique<MWState::StateManager>(mCfgMgr.getSavesPath(), mContentFiles);
     mEnvironment.setStateManager(*mStateManager);
 
     const bool stereoEnabled = Settings::stereo().mStereoEnabled || osg::DisplaySettings::instance().get()->getStereo();

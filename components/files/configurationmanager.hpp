@@ -53,7 +53,14 @@ namespace Files
 
         const std::filesystem::path& getCachePath() const;
 
-        const std::filesystem::path& getLogPath() const { return getUserConfigPath(); }
+        const std::filesystem::path& getLogPath() const
+        {
+            return mFixedPath.getLogPath().empty() ? getUserConfigPath() : mFixedPath.getLogPath();
+        }
+        std::filesystem::path getSavesPath() const
+        {
+            return mFixedPath.getSavesPath().empty() ? mUserDataPath / "saves" : mFixedPath.getSavesPath();
+        }
         const std::filesystem::path& getScreenshotPath() const;
 
         static void addCommonOptions(boost::program_options::options_description& description);
