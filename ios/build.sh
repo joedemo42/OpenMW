@@ -64,16 +64,45 @@ generate_project() {
     xcodegen generate --quiet --spec "$REPO/ios/project.yml" --project "$REPO/ios"
 }
 
+# Builds OpenMW's static libraries (DerivedData/openmw/<sdk>/lib) and stages its resources with OpenMW's own CMake;
+# configures when the build dir is new or the arguments changed. The app links and bundles the result.
+build_openmw() {  # <iphoneos|iphonesimulator>
+    local sdk=$1 target=simulator dir="$DERIVED/openmw/$1" deps="$REPO/ios-deps/build" args stamp
+    [ "$sdk" = iphoneos ] && target=device
+    args=(-G Ninja --toolchain "$REPO/ios/openmw-toolchain.cmake" -DCMAKE_OSX_SYSROOT="$sdk"
+        -DCMAKE_BUILD_TYPE=Release -DCMAKE_ARCHIVE_OUTPUT_DIRECTORY="$dir/lib"
+        # the game only: no launcher, editor, wizard, tools
+        -DBUILD_LAUNCHER=OFF -DBUILD_WIZARD=OFF -DBUILD_MWINIIMPORTER=OFF -DBUILD_OPENCS=OFF -DBUILD_ESSIMPORTER=OFF
+        -DBUILD_BSATOOL=OFF -DBUILD_ESMTOOL=OFF -DBUILD_NIFTEST=OFF -DBUILD_NAVMESHTOOL=OFF -DBUILD_BULLETOBJECTTOOL=OFF
+        -DOSG_STATIC=ON -DMYGUI_STATIC=ON -DOPENMW_USE_SYSTEM_RECASTNAVIGATION=ON
+        # iOS has no OpenGL.framework (Mesa instead); OpenAL Soft, not the SDK's OpenAL.framework
+        -DOPENGL_INCLUDE_DIR="$deps/mesa/$target/install/include" -DOPENGL_gl_LIBRARY="$deps/mesa/$target/lib/libMesa.a"
+        -DOPENAL_INCLUDE_DIR="$deps/openal-soft/$target/install/include/AL"
+        -DOPENAL_LIBRARY="$deps/openal-soft/$target/install/lib/libopenal.a"
+        # Lua custom allocator check: try_run cannot run when cross-compiling; LuaJIT with GC64 supports it
+        -DRUN_RESULT_VAR=0)
+    stamp=$(printf '%s\n' "${args[@]}")
+    if [ ! -f "$dir/build.ninja" ] || [ "$(cat "$dir/.configured" 2>/dev/null)" != "$stamp" ]; then
+        echo "==> configure OpenMW ($sdk)"
+        cmake -S "$REPO" -B "$dir" "${args[@]}"
+        echo "$stamp" > "$dir/.configured"
+    fi
+    echo "==> build OpenMW ($sdk)"
+    cmake --build "$dir" --target openmw -- --quiet
+}
+
 # xcodebuild <sdk> [extra args]
 xcbuild() {
     local sdk=$1; shift
     ensure_deps "$([ "$sdk" = iphoneos ] && echo device || echo simulator)"
+    build_openmw "$sdk"
     next_build_number
     generate_project
     echo "==> build $sdk (version $(version), build $BUILD_NUMBER)"
     xcodebuild -project "$PROJECT" -scheme Morrowind -configuration Release -sdk "$sdk" \
         -derivedDataPath "$DERIVED" -allowProvisioningUpdates -quiet \
-        MARKETING_VERSION="$(version)" CURRENT_PROJECT_VERSION="$BUILD_NUMBER" "$@"
+        MARKETING_VERSION="$(version)" CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
+        OPENMW_BUILD_DIR="$DERIVED/openmw/$sdk" "$@"
 }
 
 app_path() {  # <simulator|device>

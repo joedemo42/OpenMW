@@ -15,10 +15,6 @@ targets:
     platform: iOS
     sources:
       - Morrowind
-      # OSG bring-up test: OpenMW's SDL graphics window, OpenMW's monospace font (FreeType check)
-      - path: ../components/sdlutil/sdlgraphicswindow.cpp
-      - path: ../files/data/fonts/DejaVuLGCSansMono.ttf
-        buildPhase: resources
     dependencies:
       - framework: ../ios-deps/artifacts/SDL2.xcframework
         embed: false
@@ -73,7 +69,20 @@ targets:
       - sdk: QuartzCore.framework
       - sdk: UIKit.framework
       - sdk: libc++.tbd
+      - sdk: libsqlite3.tbd
       - sdk: libz.tbd
+    postBuildScripts:
+      # OpenMW's local config, settings defaults and resources, staged by its CMake build -> Morrowind.app/openmw
+      - name: OpenMW resources
+        basedOnDependencyAnalysis: false
+        # declared so code signing re-runs after it (a changed resource would break the seal otherwise)
+        outputFiles: ["$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/openmw"]
+        script: |
+          set -e
+          dest="$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/openmw"
+          mkdir -p "$dest"
+          rsync -a --delete "$OPENMW_BUILD_DIR/resources" "$OPENMW_BUILD_DIR/openmw.cfg" \
+              "$OPENMW_BUILD_DIR/defaults.bin" "$OPENMW_BUILD_DIR/gamecontrollerdb.txt" "$dest/"
     settings:
       base:
         PRODUCT_NAME: Morrowind
@@ -82,14 +91,14 @@ targets:
         GENERATE_INFOPLIST_FILE: NO
         TARGETED_DEVICE_FAMILY: "1,2"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        CLANG_CXX_LANGUAGE_STANDARD: c++20
-        # OpenMW includes SDL headers without the SDL2/ prefix and its own headers from the repository root
-        HEADER_SEARCH_PATHS: ["$(BUILT_PRODUCTS_DIR)/include/SDL2", "$(SRCROOT)/.."]
-        GCC_PREPROCESSOR_DEFINITIONS: ["$(inherited)", "OSG_LIBRARY_STATIC"]
+        # OpenMW's static libraries (CMake build by ios/build.sh), SDL_main in libopenmw.a
+        LIBRARY_SEARCH_PATHS: ["$(inherited)", "$(OPENMW_BUILD_DIR)/lib"]
         # as OpenMW links on Apple (OSG plugins register themselves in static initializers). Release dead-strips
         # unreferenced objects and ignores their unresolved/duplicate symbols (FIXES #18)
-        OTHER_LDFLAGS: ["$(inherited)", "-all_load"]
+        OTHER_LDFLAGS: ["$(inherited)", "-all_load", "-lopenmw", "-lopenmw-lib", "-lcomponents",
+                        "-losg-ffmpeg-videoplayer", "-loics", "-llocal_tinyxml", "-lsmhasher"]
         # overridden by ios/build.sh
         MARKETING_VERSION: "0.0.0"
         CURRENT_PROJECT_VERSION: "0"
+        OPENMW_BUILD_DIR: ""
     scheme: {}
