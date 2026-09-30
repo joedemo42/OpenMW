@@ -20,7 +20,7 @@ Usage: $SCRIPT <command> [args] [options]
     install [target] [--no-build]
     run     [target] [--seconds <1-45>] [--label <name>] [--no-build] [--no-install] [-- <app args>]
     ipa     [--unsigned]
-    push                                          signed IPA -> repo server
+    upload                                        signed IPA -> repo server
 
   clean [app|deps|all]       default: app
 
@@ -33,7 +33,7 @@ command=$1; shift
 case "$command" in
     -h|--help) usage ;;
     deps) exec "$ROOT/ios-deps/build-deps.sh" "$@" ;;
-    build|install|run|ipa|push) exec "$ROOT/ios/build.sh" "$command" "$@" ;;
+    build|install|run|ipa|upload) exec "$ROOT/ios/build.sh" "$command" "$@" ;;
     clean)
         [ $# -le 1 ] || { usage >&2; exit 1; }
         case "${1:-app}" in

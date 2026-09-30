@@ -22,7 +22,7 @@ Target options: --simulator <name|UDID> | --device <name|UDID>  (default: $DEFAU
           build + install + run non-interactively (default: 45 s), logs + screenshot -> log/
           --no-build: use last build. --no-install: launch installed app (implies --no-build)
   ipa     [--unsigned]              device build -> IPA in DerivedData/ipa
-  push                              signed IPA of current tree -> archive/ -> repo server
+  upload                            signed IPA of current tree -> archive/ -> repo server
   clean                             remove app build output (DerivedData)
 EOF
 }
@@ -212,7 +212,7 @@ build_unsigned() {
     xcbuild iphoneos -destination "generic/platform=iOS" CODE_SIGNING_ALLOWED=NO
 }
 
-push() {
+upload() {
     make_ipa
     mkdir -p "$REPO/archive"
     local name="Morrowind-$(version)-$BUILD_NUMBER.ipa" code
@@ -228,7 +228,7 @@ push() {
 command=$1; shift
 case "$command" in
     -h|--help) usage; exit 0 ;;
-    build|install|run|ipa|push|clean) ;;
+    build|install|run|ipa|upload|clean) ;;
     *) usage >&2; exit 1 ;;
 esac
 
@@ -290,10 +290,10 @@ case "$command" in
         allow --unsigned
         [ ${#POSITIONAL[@]} -eq 0 ] || die "unexpected argument '${POSITIONAL[0]}'"
         make_ipa $UNSIGNED ;;
-    push)
+    upload)
         allow
         [ ${#POSITIONAL[@]} -eq 0 ] || die "unexpected argument '${POSITIONAL[0]}'"
-        push ;;
+        upload ;;
     clean)
         allow
         [ ${#POSITIONAL[@]} -eq 0 ] || die "unexpected argument '${POSITIONAL[0]}'"
