@@ -24,6 +24,10 @@ extern "C" __declspec(dllexport) DWORD AmdPowerXpressRequestHighPerformance = 0x
 
 #include <filesystem>
 
+#ifdef __APPLE__
+#include <TargetConditionals.h>
+#endif
+
 #if (defined(__APPLE__) || defined(__linux) || defined(__unix) || defined(__posix))
 #include <unistd.h>
 #endif
@@ -234,7 +238,7 @@ int runApplication(int argc, char* argv[])
     return 0;
 }
 
-#ifdef ANDROID
+#if defined(ANDROID) || (defined(__APPLE__) && TARGET_OS_IPHONE)
 extern "C" int SDL_main(int argc, char** argv)
 #else
 int main(int argc, char** argv)
