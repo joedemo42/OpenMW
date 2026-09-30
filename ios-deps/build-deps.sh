@@ -15,7 +15,7 @@ ARTIFACTS_DIR="$DEPS_DIR/artifacts"
 SCRIPT="${0#"$PWD/"}"
 
 # Build order: every dependency after its prerequisites.
-DEPS=(moltenvk mesa sdl2 libpng libjpeg-turbo freetype)
+DEPS=(moltenvk mesa sdl2 libpng libjpeg-turbo freetype osg)
 
 usage() {
     cat <<EOF
@@ -120,6 +120,27 @@ xcframework() {  # <name> <lib path> [<headers path>]   (paths relative to build
         [ "$platforms" = "$platform" ] || die "$name.xcframework: $t slice platforms '${platforms//$'\n'/ }', expected $platform"
     done
     echo "==> $name.xcframework ok (${TARGETS[*]})"
+}
+
+# Merged static archives must not define a strong symbol twice: OpenMW links with -all_load on Apple.
+# strong_duplicates <lib> <drop|symbols>: removable duplicate members, or symbols defined more than once
+strong_duplicates() {
+    nm -A -m "$1" 2> /dev/null | awk -v mode="$2" '
+        /\(undefined\)/ || / weak / || !/ external / {next}
+        { split($1, p, ":"); member = p[2]; sym = $NF
+          count[sym]++; defs[sym] = defs[sym] " " member; msyms[member] = msyms[member] " " sym }
+        END {
+            for (s in count) if (count[s] > 1) {
+                if (mode == "symbols") print s
+                n = split(defs[s], ms, " "); for (i = 2; i <= n; i++) drop[ms[i]] = 1
+            }
+            if (mode != "drop") exit
+            for (m in drop) {
+                ok = 1; n = split(msyms[m], ss, " ")
+                for (j = 1; j <= n; j++) if (count[ss[j]] < 2) ok = 0
+                if (ok) print m
+            }
+        }'
 }
 
 load_recipe() {

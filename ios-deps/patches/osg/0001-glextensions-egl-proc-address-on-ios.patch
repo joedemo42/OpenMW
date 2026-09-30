@@ -1,0 +1,27 @@
+--- a/src/osg/GLExtensions.cpp
++++ b/src/osg/GLExtensions.cpp
+@@ -36,6 +36,13 @@
+     #endif // NOMINMAX
+     #include <windows.h>
+ #elif defined(__APPLE__)
++    #include <TargetConditionals.h>
++    #if TARGET_OS_IPHONE && !defined(OSG_GLES1_AVAILABLE) && !defined(OSG_GLES2_AVAILABLE) && !defined(OSG_GLES3_AVAILABLE)
++        // Desktop OpenGL on iOS is no system library but an EGL implementation (e.g. Mesa), usually linked
++        // statically, whose functions the application does not necessarily export. Ask EGL for them.
++        #define OSG_GL_PROC_ADDRESS_FROM_EGL
++        #include <EGL/egl.h>
++    #endif
+     // The NS*Symbol* stuff found in <mach-o/dyld.h> is deprecated.
+     // Since 10.3 (Panther) OS X has provided the dlopen/dlsym/dlclose
+     // family of functions under <dlfcn.h>. Since 10.4 (Tiger), Apple claimed
+@@ -352,6 +359,10 @@
+             return convertPointerType<void*, PROC>(wglGetProcAddress(funcName));
+         #endif
+ 
++    #elif defined(OSG_GL_PROC_ADDRESS_FROM_EGL)
++
++        return convertPointerType<void*, __eglMustCastToProperFunctionPointerType>(eglGetProcAddress(funcName));
++
+     #elif defined(__APPLE__)
+ 
+         #if defined(USE_APPLE_LEGACY_NSSYMBOL)

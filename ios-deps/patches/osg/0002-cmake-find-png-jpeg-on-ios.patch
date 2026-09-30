@@ -1,0 +1,14 @@
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -820,9 +820,9 @@
+ # potentially redundant modules.)
+ 
+ # Image readers/writers depend on 3rd party libraries except for OS X which
+-# can use Quicktime.
++# can use Quicktime. Builds for CMake's iOS platform use the libraries too.
+ IF(NOT (ANDROID AND OSG_FIND_3RD_PARTY_DEPS))
+-    IF(NOT APPLE)
++    IF(NOT APPLE OR IOS)
+         FIND_PACKAGE(GIFLIB)
+         FIND_PACKAGE(JPEG)
+         FIND_PACKAGE(PNG)

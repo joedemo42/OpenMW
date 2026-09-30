@@ -117,26 +117,6 @@ EOF
     [ -z "$(strong_duplicates "$lib" symbols)" ] || die "libMesa.a: duplicate strong symbols remain"
 }
 
-# strong_duplicates <lib> <drop|symbols>: removable duplicate members, or symbols defined more than once
-strong_duplicates() {
-    nm -A -m "$1" 2> /dev/null | awk -v mode="$2" '
-        /\(undefined\)/ || / weak / || !/ external / {next}
-        { split($1, p, ":"); member = p[2]; sym = $NF
-          count[sym]++; defs[sym] = defs[sym] " " member; msyms[member] = msyms[member] " " sym }
-        END {
-            for (s in count) if (count[s] > 1) {
-                if (mode == "symbols") print s
-                n = split(defs[s], ms, " "); for (i = 2; i <= n; i++) drop[ms[i]] = 1
-            }
-            if (mode != "drop") exit
-            for (m in drop) {
-                ok = 1; n = split(msyms[m], ss, " ")
-                for (j = 1; j <= n; j++) if (count[ss[j]] < 2) ok = 0
-                if (ok) print m
-            }
-        }'
-}
-
 mesa_xcframework() {
     xcframework Mesa lib/libMesa.a install/include
 }
