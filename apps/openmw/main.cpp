@@ -30,6 +30,7 @@ extern "C" __declspec(dllexport) DWORD AmdPowerXpressRequestHighPerformance = 0x
 
 #if defined(__APPLE__) && TARGET_OS_IPHONE
 #include "ios/firstlaunch.hpp"
+#include <cstdlib>
 #endif
 
 #if (defined(__APPLE__) || defined(__linux) || defined(__unix) || defined(__posix))
@@ -252,7 +253,12 @@ extern "C" int SDL_main(int argc, char** argv)
 int main(int argc, char** argv)
 #endif
 {
-    return Debug::wrapApplication(&runApplication, argc, argv, "OpenMW");
+    const int ret = Debug::wrapApplication(&runApplication, argc, argv, "OpenMW");
+#if defined(__APPLE__) && TARGET_OS_IPHONE
+    // SDL's UIKit delegate keeps the process alive after SDL_main returns (black screen); end it like main() would
+    std::exit(ret);
+#endif
+    return ret;
 }
 
 // Platform specific for Windows when there is no console built into the executable.
