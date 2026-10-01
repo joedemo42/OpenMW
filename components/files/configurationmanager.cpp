@@ -150,6 +150,7 @@ namespace Files
 
         std::filesystem::create_directories(getUserConfigPath());
         std::filesystem::create_directories(getLogPath());
+        std::filesystem::create_directories(mUserDataPath);
         std::filesystem::create_directories(mScreenshotPath);
 
         // probably not necessary but validate the creation of the screenshots directory and fallback to the original
