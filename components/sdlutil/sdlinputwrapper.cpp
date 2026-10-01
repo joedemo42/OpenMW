@@ -46,8 +46,8 @@ namespace SDLUtil
         SDL_GetWindowSize(mSDLWindow, &w, &h);
         int dw, dh;
         SDL_GL_GetDrawableSize(mSDLWindow, &dw, &dh);
-        mScaleX = static_cast<Uint16>(dw / w);
-        mScaleY = static_cast<Uint16>(dh / h);
+        mScaleX = static_cast<float>(dw) / w;
+        mScaleY = static_cast<float>(dh) / h;
     }
 
     void InputWrapper::capture(bool windowEventsOnly)
@@ -421,10 +421,10 @@ namespace SDLUtil
 
         if (evt.type == SDL_MOUSEMOTION)
         {
-            packEvt.x = evt.motion.x * mScaleX;
-            packEvt.y = evt.motion.y * mScaleY;
-            packEvt.xrel = evt.motion.xrel * mScaleX;
-            packEvt.yrel = evt.motion.yrel * mScaleY;
+            packEvt.x = static_cast<Sint32>(evt.motion.x * mScaleX);
+            packEvt.y = static_cast<Sint32>(evt.motion.y * mScaleY);
+            packEvt.xrel = static_cast<Sint32>(evt.motion.xrel * mScaleX);
+            packEvt.yrel = static_cast<Sint32>(evt.motion.yrel * mScaleY);
             packEvt.type = SDL_MOUSEMOTION;
             if (mFirstMouseMove)
             {
@@ -447,8 +447,8 @@ namespace SDLUtil
             packEvt.z = mMouseZ;
             packEvt.type = SDL_MOUSEWHEEL;
 
-            packEvt.x = evt.wheel.mouseX * mScaleX;
-            packEvt.y = evt.wheel.mouseY * mScaleY;
+            packEvt.x = static_cast<Sint32>(evt.wheel.mouseX * mScaleX);
+            packEvt.y = static_cast<Sint32>(evt.wheel.mouseY * mScaleY);
         }
         else
         {
