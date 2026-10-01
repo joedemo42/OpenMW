@@ -93,6 +93,14 @@ namespace
             Log(Debug::Error) << "SDL error: " << SDL_GetError();
     }
 
+    // Sent on iOS and Android only, which may end a background app without notice
+    int requestBackgroundSave(void* requested, SDL_Event* event)
+    {
+        if (event->type == SDL_APP_WILLENTERBACKGROUND)
+            static_cast<std::atomic_bool*>(requested)->store(true);
+        return 0;
+    }
+
     void initStatsHandler(Resource::Profiler& profiler)
     {
         const osg::Vec4f textColor(1.f, 1.f, 1.f, 1.f);
@@ -206,6 +214,13 @@ bool OMW::Engine::frame(unsigned frameNumber, float frametime)
         {
             ScopedProfile<UserStatsType::Input> profile(frameStart, frameNumber, *timer, *stats);
             mInputManager->update(frametime, false);
+        }
+
+        // Lua is idle here, as when the settings window saves on closing
+        if (mBackgroundSaveRequested.exchange(false))
+        {
+            saveUserSettings();
+            mEnvironment.getInputManager()->saveBindings();
         }
 
         // When the window is minimized, pause the game. Currently this *has* to be here to work around a MyGUI bug.
@@ -387,6 +402,7 @@ OMW::Engine::Engine(Files::ConfigurationManager& configurationManager)
     , mNewGame(false)
     , mCfgMgr(configurationManager)
     , mGlMaxTextureImageUnits(0)
+    , mBackgroundSaveRequested(false)
 {
     SDL_SetHint(SDL_HINT_MAC_OPENGL_ASYNC_DISPATCH, "1");
     SDL_SetHint(SDL_HINT_ACCELEROMETER_AS_JOYSTICK, "0"); // We use only gamepads
@@ -401,6 +417,8 @@ OMW::Engine::Engine(Files::ConfigurationManager& configurationManager)
             throw std::runtime_error("Could not initialize SDL! " + std::string(SDL_GetError()));
         }
     }
+
+    SDL_AddEventWatch(requestBackgroundSave, &mBackgroundSaveRequested);
 }
 
 OMW::Engine::~Engine()
@@ -443,6 +461,7 @@ OMW::Engine::~Engine()
         mWindow = nullptr;
     }
 
+    SDL_DelEventWatch(requestBackgroundSave, &mBackgroundSaveRequested);
     SDL_Quit();
 
     Log(Debug::Info) << "Quitting peacefully.";
@@ -1080,7 +1099,11 @@ void OMW::Engine::go()
 
     mLuaWorker->join();
 
-    // Save user settings
+    saveUserSettings();
+}
+
+void OMW::Engine::saveUserSettings()
+{
     Settings::Manager::saveUser(mCfgMgr.getUserConfigPath() / "settings.cfg");
     Settings::ShaderManager::get().save();
     mLuaManager->savePermanentStorage(mCfgMgr.getUserConfigPath());

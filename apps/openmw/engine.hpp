@@ -1,6 +1,7 @@
 #ifndef ENGINE_H
 #define ENGINE_H
 
+#include <atomic>
 #include <filesystem>
 
 #include <components/compiler/extensions.hpp>
@@ -186,6 +187,9 @@ namespace OMW
         Files::ConfigurationManager& mCfgMgr;
         int mGlMaxTextureImageUnits;
 
+        // set by SDL's event watch, possibly from another thread
+        std::atomic_bool mBackgroundSaveRequested;
+
         // not implemented
         Engine(const Engine&);
         Engine& operator=(const Engine&);
@@ -193,6 +197,8 @@ namespace OMW
         void executeLocalScripts();
 
         bool frame(unsigned frameNumber, float dt);
+
+        void saveUserSettings();
 
         /// Prepare engine for game play
         void prepareEngine();
