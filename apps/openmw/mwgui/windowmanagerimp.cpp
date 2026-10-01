@@ -209,7 +209,7 @@ namespace MWGui
         int dw, dh;
         SDL_GL_GetDrawableSize(window, &dw, &dh);
 
-        mScalingFactor = Settings::gui().mScalingFactor * (dw / w);
+        mScalingFactor = Settings::gui().mScalingFactor * (static_cast<float>(dw) / w);
         constexpr VFS::Path::NormalizedView resourcePath("mygui");
         mGuiPlatform = std::make_unique<MyGUIPlatform::Platform>(viewer, guiRoot, resourceSystem->getImageManager(),
             resourceSystem->getVFS(), mScalingFactor, resourcePath, logpath / "MyGUI.log");
