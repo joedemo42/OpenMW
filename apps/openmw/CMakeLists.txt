@@ -150,6 +150,7 @@ if(BUILD_OPENMW)
         add_library(openmw STATIC
             main.cpp
             ios/firstlaunch.cpp
+            ios/platform.mm
             ${CMAKE_SOURCE_DIR}/apps/mwiniimporter/importer.cpp
         )
     else()

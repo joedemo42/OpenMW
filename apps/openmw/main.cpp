@@ -30,6 +30,7 @@ extern "C" __declspec(dllexport) DWORD AmdPowerXpressRequestHighPerformance = 0x
 
 #if defined(__APPLE__) && TARGET_OS_IPHONE
 #include "ios/firstlaunch.hpp"
+#include "ios/platform.hpp"
 #include <cstdlib>
 #endif
 
@@ -229,6 +230,7 @@ int runApplication(int argc, char* argv[])
     osg::setNotifyHandler(new OSGLogHandler());
     Files::ConfigurationManager cfgMgr;
 #if defined(__APPLE__) && TARGET_OS_IPHONE
+    OMW::initIosPlatform();
     if (!OMW::ensureUserConfig(cfgMgr.getUserConfigPath()))
         return 0;
 #endif
