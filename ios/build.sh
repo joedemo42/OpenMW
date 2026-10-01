@@ -15,16 +15,19 @@ usage() {
     cat <<EOF
 Usage: $SCRIPT <command> [args] [options]
 Target options: --simulator <name|UDID> | --device <name|UDID>  (default: $DEFAULT_SIMULATOR simulator)
+Configuration: --release (optimized, stripped, dSYM) for build, install, run, ipa, upload. default: debug
 
-  build   [simulator|device|both]   build app, increments build number once. default: simulator
-  install [target]                  install current build on target (current: DerivedData/current-<slice>
-                                    = CFBundleVersion of the slice's app). no current build -> exit 1
+  build   [simulator|device|both]   build app (both: simulator + device of the configuration), increments build
+                                    number once. default: simulator
+  install [target]                  install current build on target (current: DerivedData/current-<platform>-
+                                    <configuration> = CFBundleVersion of the slice's app). no current build -> exit 1
   run     [target] [--seconds <1-45>] [--label <name>] [-- <app args>]
           run installed app non-interactively (default: 45 s), logs + screenshot -> log/
           app not installed or installed build != current build -> exit 1
   ipa     [--unsigned]              current device build -> IPA in DerivedData/ipa. no current build -> exit 1
   upload  [--notes <text>|--notes-file <path>]
           ipa + release notes ("What's New") -> archive/ -> repo server. no current device build -> exit 1
+          --release: dSYM zip next to the IPA in archive/, not uploaded. debug: first notes line [DEBUG BUILD]
   documents zip                     game data payload (./Data -> Data/) -> DerivedData/ipa/Documents.zip
   documents install [target]        copy the payload into the installed app's Documents, no reinstall
                                     (app not installed -> abort; overwrites, deletes nothing)
@@ -69,13 +72,16 @@ generate_project() {
     xcodegen generate --quiet --spec "$REPO/ios/project.yml" --project "$REPO/ios"
 }
 
-# Builds OpenMW's static libraries (DerivedData/openmw/<sdk>/lib) and stages its resources with OpenMW's own CMake;
-# configures when the build dir is new or the arguments changed. The app links and bundles the result.
+# Builds OpenMW's static libraries (DerivedData/openmw/<configuration>-<sdk>/lib) and stages its resources with
+# OpenMW's own CMake; configures when the build dir is new or the arguments changed. The app links and bundles the
+# result.
 build_openmw() {  # <iphoneos|iphonesimulator>
-    local sdk=$1 target=simulator dir="$DERIVED/openmw/$1" deps="$REPO/ios-deps/build" args stamp
+    local sdk=$1 target=simulator dir="$DERIVED/openmw/$CONFIG-$1" deps="$REPO/ios-deps/build" args stamp type=Debug
     [ "$sdk" = iphoneos ] && target=device
+    # release: optimized with debug info for the dSYM (upstream's default build type)
+    [ "$CONFIG" = Release ] && type=RelWithDebInfo
     args=(-G Ninja --toolchain "$REPO/ios/openmw-toolchain.cmake" -DCMAKE_OSX_SYSROOT="$sdk"
-        -DCMAKE_BUILD_TYPE=Release -DCMAKE_ARCHIVE_OUTPUT_DIRECTORY="$dir/lib"
+        -DCMAKE_BUILD_TYPE=$type -DCMAKE_ARCHIVE_OUTPUT_DIRECTORY="$dir/lib"
         # the game only: no launcher, editor, wizard, tools
         -DBUILD_LAUNCHER=OFF -DBUILD_WIZARD=OFF -DBUILD_MWINIIMPORTER=OFF -DBUILD_OPENCS=OFF -DBUILD_ESSIMPORTER=OFF
         -DBUILD_BSATOOL=OFF -DBUILD_ESMTOOL=OFF -DBUILD_NIFTEST=OFF -DBUILD_NAVMESHTOOL=OFF -DBUILD_BULLETOBJECTTOOL=OFF
@@ -103,38 +109,38 @@ xcbuild() {
     build_openmw "$sdk"
     next_build_number
     generate_project
-    echo "==> build $sdk (version $(version), build $BUILD_NUMBER)"
-    xcodebuild -project "$PROJECT" -scheme Morrowind -configuration Release -sdk "$sdk" \
+    echo "==> build $sdk $CONFIG (version $(version), build $BUILD_NUMBER)"
+    xcodebuild -project "$PROJECT" -scheme Morrowind -configuration "$CONFIG" -sdk "$sdk" \
         -derivedDataPath "$DERIVED" -allowProvisioningUpdates -quiet \
         MARKETING_VERSION="$(version)" CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
-        OPENMW_BUILD_DIR="$DERIVED/openmw/$sdk" "$@"
+        OPENMW_BUILD_DIR="$DERIVED/openmw/$CONFIG-$sdk" "$@"
 }
 
 app_path() {  # <simulator|device>
     local sdk=iphonesimulator
     [ "$1" = device ] && sdk=iphoneos
-    echo "$DERIVED/Build/Products/Release-$sdk/Morrowind.app"
+    echo "$DERIVED/Build/Products/$CONFIG-$sdk/Morrowind.app"
 }
 
-# Current build = the slice's stamp (written by a successful 'build') exists and its app in DerivedData has that
-# CFBundleVersion; sets BUILD_NUMBER.
+# Current build = the slice's (platform-configuration) stamp, written by a successful 'build', exists and its app in
+# DerivedData has that CFBundleVersion; sets BUILD_NUMBER.
 require_build() {  # <simulator|device>
-    local expected found
-    expected=$(cat "$DERIVED/current-$1" 2>/dev/null || true)
+    local slice="$1-$CONFIG" expected found
+    expected=$(cat "$DERIVED/current-$slice" 2>/dev/null || true)
     found=$(plutil -extract CFBundleVersion raw "$(app_path "$1")/Info.plist" 2>/dev/null || true)
-    [ -n "$expected" ] && [ "$found" = "$expected" ] || die "no current $1 build: stamp ${expected:-none}" \
-        "(DerivedData/current-$1), app ${found:-none}. run '$SCRIPT build $1'"
+    [ -n "$expected" ] && [ "$found" = "$expected" ] || die "no current $slice build: stamp ${expected:-none}" \
+        "(DerivedData/current-$slice), app ${found:-none}. run '$SCRIPT build $1${RELEASE:+ $RELEASE}'"
     BUILD_NUMBER=$expected
 }
 
 build() {  # <simulator|device|both>
     [ "$1" = both ] && { build simulator; build device; return; }
-    rm -f "$DERIVED/current-$1"
+    rm -f "$DERIVED/current-$1-$CONFIG"
     case "$1" in
         simulator) xcbuild iphonesimulator -destination "generic/platform=iOS Simulator" ;;
         device) xcbuild iphoneos -destination "generic/platform=iOS" ;;
     esac
-    echo "$BUILD_NUMBER" > "$DERIVED/current-$1"
+    echo "$BUILD_NUMBER" > "$DERIVED/current-$1-$CONFIG"
 }
 
 # Target selection (--simulator / --device) -> KIND + TARGET (simulator UDID or device name/UDID).
@@ -161,7 +167,7 @@ sys.exit(1)
 install_app() {
     local app
     app=$(app_path "$KIND")
-    echo "==> install $KIND $TARGET (build $BUILD_NUMBER)"
+    echo "==> install $KIND $TARGET ($CONFIG build $BUILD_NUMBER)"
     if [ "$KIND" = simulator ]; then
         xcrun simctl install "$TARGET" "$app"
     else
@@ -251,17 +257,39 @@ make_ipa() {  # [--unsigned]
     (cd "$out" && rm -f "$name" && zip -qry "$name" Payload && rm -rf Payload)
     IPA="$out/$name"
     [ -f "$IPA" ] || die "IPA not created"
-    echo "==> $IPA (build $BUILD_NUMBER)"
+    echo "==> $IPA ($CONFIG build $BUILD_NUMBER)"
 }
 
-upload() {  # [curl args for the notes field]
+upload() {
     make_ipa
+    local name="Morrowind-$(version)-$BUILD_NUMBER" notes=() code dsym
+    if [ "$CONFIG" = Debug ]; then
+        # first notes line: the repo server cannot tell debug from release builds
+        case "$NOTES_OPT" in
+            --notes) NOTES="[DEBUG BUILD]"$'\n'"$NOTES" ;;
+            --notes-file)
+                { echo "[DEBUG BUILD]"; cat "$NOTES"; } > "$DERIVED/ipa/notes.txt"
+                NOTES=$DERIVED/ipa/notes.txt ;;
+            *) NOTES_OPT=--notes NOTES="[DEBUG BUILD]" ;;
+        esac
+    fi
+    case "$NOTES_OPT" in
+        --notes) notes=(--form-string "notes=$NOTES") ;;  # literal, no @/< parsing
+        --notes-file) notes=(-F "notes=<$NOTES") ;;
+    esac
     mkdir -p "$REPO/archive"
-    local name="Morrowind-$(version)-$BUILD_NUMBER.ipa" code
-    cp "$IPA" "$REPO/archive/$name"
-    echo "==> upload archive/$name"
-    code=$(cd "$REPO" && curl -sS -o /dev/null -w '%{http_code}' -F "file=@archive/$name" "$@" "$REPO_SERVER") \
-        || die "upload failed"
+    cp "$IPA" "$REPO/archive/$name.ipa"
+    if [ "$CONFIG" = Release ]; then
+        # the dSYM stays next to the IPA, not uploaded
+        dsym="$(app_path device).dSYM"
+        [ -d "$dsym" ] || die "no dSYM: $dsym"
+        rm -f "$REPO/archive/$name.dSYM.zip"
+        (cd "$(dirname "$dsym")" && zip -qry "$REPO/archive/$name.dSYM.zip" "$(basename "$dsym")")
+        echo "==> archive/$name.dSYM.zip"
+    fi
+    echo "==> upload archive/$name.ipa"
+    code=$(cd "$REPO" && curl -sS -o /dev/null -w '%{http_code}' -F "file=@archive/$name.ipa" \
+        "${notes[@]+"${notes[@]}"}" "$REPO_SERVER") || die "upload failed"
     [ "$code" -lt 400 ] || die "upload failed (HTTP $code)"
     echo "==> uploaded (HTTP $code)"
 }
@@ -299,22 +327,22 @@ case "$command" in
 esac
 
 # Common option parsing.
-POSITIONAL=() APP_ARGS=() UNSIGNED= SECONDS_ARG=45 LABEL=screenshot NOTES=()
+POSITIONAL=() APP_ARGS=() UNSIGNED= RELEASE= SECONDS_ARG=45 LABEL=screenshot NOTES_OPT= NOTES=
 while [ $# -gt 0 ]; do
     case "$1" in
         --simulator) [ $# -ge 2 ] || die "--simulator needs <name|UDID>"; KIND=simulator; TARGET=$2; shift ;;
         --device) [ $# -ge 2 ] || die "--device needs <name|UDID>"; KIND=device; TARGET=$2; shift ;;
         --unsigned) UNSIGNED=--unsigned ;;
+        --release) RELEASE=--release ;;
         --seconds) [ $# -ge 2 ] || die "--seconds needs a value"; SECONDS_ARG=$2; shift ;;
         --label) [ $# -ge 2 ] || die "--label needs a name"; LABEL=$2; shift ;;
         --notes|--notes-file)
             [ $# -ge 2 ] || die "$1 needs a value"
-            [ ${#NOTES[@]} -eq 0 ] || die "--notes and --notes-file are mutually exclusive"
-            if [ "$1" = --notes ]; then
-                NOTES=(--form-string "notes=$2")  # literal, no @/< parsing
-            else
+            [ -z "$NOTES_OPT" ] || die "--notes and --notes-file are mutually exclusive"
+            NOTES_OPT=$1 NOTES=$2
+            if [ "$1" = --notes-file ]; then
                 [ -f "$2" ] || die "notes file '$2' not found"
-                NOTES=(-F "notes=<$(cd "$(dirname "$2")" && pwd)/$(basename "$2")")
+                NOTES="$(cd "$(dirname "$2")" && pwd)/$(basename "$2")"
             fi
             shift ;;
         --) shift; APP_ARGS=("$@"); break ;;
@@ -323,15 +351,19 @@ while [ $# -gt 0 ]; do
     esac
     shift
 done
+# Xcode configuration, also selects the CMake build type of OpenMW's code (ios-deps: one build for both)
+CONFIG=Debug
+[ -n "$RELEASE" ] && CONFIG=Release
 
 allow() {  # <allowed options...>: reject options not valid for this command
     local given=() opt
     [ "$KIND$TARGET" != "simulator$DEFAULT_SIMULATOR" ] && given+=(target)
     [ -n "$UNSIGNED" ] && given+=(--unsigned)
+    [ -n "$RELEASE" ] && given+=(--release)
     [ "$SECONDS_ARG" != 45 ] && given+=(--seconds)
     [ "$LABEL" != screenshot ] && given+=(--label)
     [ ${#APP_ARGS[@]} -gt 0 ] && given+=(--)
-    [ ${#NOTES[@]} -gt 0 ] && given+=(--notes)
+    [ -n "$NOTES_OPT" ] && given+=(--notes)
     for opt in "${given[@]+"${given[@]}"}"; do
         [[ " $* " == *" $opt "* ]] || die "'$opt' is not valid for '$command'"
     done
@@ -339,18 +371,18 @@ allow() {  # <allowed options...>: reject options not valid for this command
 
 case "$command" in
     build)
-        allow
+        allow --release
         [ ${#POSITIONAL[@]} -le 1 ] || die "usage: $SCRIPT build [simulator|device|both]"
         target=${POSITIONAL[0]:-simulator}
         case "$target" in simulator|device|both) build "$target" ;; *) die "unknown target '$target'" ;; esac ;;
     install)
-        allow target
+        allow target --release
         [ ${#POSITIONAL[@]} -eq 0 ] || die "unexpected argument '${POSITIONAL[0]}'"
         require_build "$KIND"
         resolve_target
         install_app ;;
     run)
-        allow target --seconds --label --
+        allow target --seconds --label -- --release
         [ ${#POSITIONAL[@]} -eq 0 ] || die "unexpected argument '${POSITIONAL[0]}'"
         [[ "$SECONDS_ARG" =~ ^[0-9]+$ ]] && [ "$SECONDS_ARG" -ge 1 ] && [ "$SECONDS_ARG" -le 45 ] \
             || die "--seconds must be 1-45"
@@ -359,16 +391,16 @@ case "$command" in
         resolve_target
         require_installed
         [ "$INSTALLED" = "$BUILD_NUMBER" ] || die "installed build $INSTALLED on $KIND $TARGET is not the current" \
-            "build $BUILD_NUMBER. run '$SCRIPT install'"
+            "build $BUILD_NUMBER. run '$SCRIPT install${RELEASE:+ $RELEASE}'"
         run_app "$SECONDS_ARG" "$LABEL" "${APP_ARGS[@]+"${APP_ARGS[@]}"}" ;;
     ipa)
-        allow --unsigned
+        allow --unsigned --release
         [ ${#POSITIONAL[@]} -eq 0 ] || die "unexpected argument '${POSITIONAL[0]}'"
         make_ipa $UNSIGNED ;;
     upload)
-        allow --notes
+        allow --notes --release
         [ ${#POSITIONAL[@]} -eq 0 ] || die "unexpected argument '${POSITIONAL[0]}'"
-        upload "${NOTES[@]+"${NOTES[@]}"}" ;;
+        upload ;;
     documents)
         [ ${#POSITIONAL[@]} -eq 1 ] || die "usage: $SCRIPT documents zip | documents install [target]"
         case "${POSITIONAL[0]}" in

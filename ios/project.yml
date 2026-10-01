@@ -103,4 +103,8 @@ targets:
         MARKETING_VERSION: "0.0.0"
         CURRENT_PROJECT_VERSION: "0"
         OPENMW_BUILD_DIR: ""
+      configs:
+        # strips the app binary in plain builds too (Xcode strips only when installing); the dSYM keeps the symbols
+        Release:
+          DEPLOYMENT_POSTPROCESSING: YES
     scheme: {}

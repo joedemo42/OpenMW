@@ -16,6 +16,7 @@ Usage: $SCRIPT <command> [args] [options]
     dist-clean <all|dep>                          clean + remove source
 
   app (ios/build.sh), target: --simulator <name|UDID> | --device <name|UDID>
+    --release (build/install/run/ipa/upload): optimized, stripped, dSYM. default: debug
     build   [simulator|device|both]               default: simulator
     install [target]
     run     [target] [--seconds <1-45>] [--label <name>] [-- <app args>]
