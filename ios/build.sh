@@ -17,14 +17,14 @@ Usage: $SCRIPT <command> [args] [options]
 Target options: --simulator <name|UDID> | --device <name|UDID>  (default: $DEFAULT_SIMULATOR simulator)
 
   build   [simulator|device|both]   build app, increments build number once. default: simulator
-  install [target]                  install current build (CFBundleVersion = ios/BUILD_NUMBER) on target
-                                    no matching build -> exit 1
+  install [target]                  install current build on target (current: DerivedData/current-<slice>
+                                    = CFBundleVersion of the slice's app). no current build -> exit 1
   run     [target] [--seconds <1-45>] [--label <name>] [-- <app args>]
           run installed app non-interactively (default: 45 s), logs + screenshot -> log/
-          app not installed or installed build != current build (ios/BUILD_NUMBER) -> exit 1
-  ipa     [--unsigned]              current device build -> IPA in DerivedData/ipa. no matching build -> exit 1
+          app not installed or installed build != current build -> exit 1
+  ipa     [--unsigned]              current device build -> IPA in DerivedData/ipa. no current build -> exit 1
   upload  [--notes <text>|--notes-file <path>]
-          ipa + release notes ("What's New") -> archive/ -> repo server. no matching device build -> exit 1
+          ipa + release notes ("What's New") -> archive/ -> repo server. no current device build -> exit 1
   documents zip                     game data payload (./Data -> Data/) -> DerivedData/ipa/Documents.zip
   documents install [target]        copy the payload into the installed app's Documents, no reinstall
                                     (app not installed -> abort; overwrites, deletes nothing)
@@ -116,22 +116,25 @@ app_path() {  # <simulator|device>
     echo "$DERIVED/Build/Products/Release-$sdk/Morrowind.app"
 }
 
-# Current build = the app in DerivedData whose CFBundleVersion equals ios/BUILD_NUMBER; sets BUILD_NUMBER.
+# Current build = the slice's stamp (written by a successful 'build') exists and its app in DerivedData has that
+# CFBundleVersion; sets BUILD_NUMBER.
 require_build() {  # <simulator|device>
     local expected found
-    expected=$(cat "$REPO/ios/BUILD_NUMBER" 2>/dev/null || true)
+    expected=$(cat "$DERIVED/current-$1" 2>/dev/null || true)
     found=$(plutil -extract CFBundleVersion raw "$(app_path "$1")/Info.plist" 2>/dev/null || true)
-    [ -n "$expected" ] && [ "$found" = "$expected" ] || die "no current $1 build: expected build ${expected:-none}" \
-        "(ios/BUILD_NUMBER), found ${found:-none} in DerivedData. run '$SCRIPT build $1'"
+    [ -n "$expected" ] && [ "$found" = "$expected" ] || die "no current $1 build: stamp ${expected:-none}" \
+        "(DerivedData/current-$1), app ${found:-none}. run '$SCRIPT build $1'"
     BUILD_NUMBER=$expected
 }
 
 build() {  # <simulator|device|both>
+    [ "$1" = both ] && { build simulator; build device; return; }
+    rm -f "$DERIVED/current-$1"
     case "$1" in
         simulator) xcbuild iphonesimulator -destination "generic/platform=iOS Simulator" ;;
         device) xcbuild iphoneos -destination "generic/platform=iOS" ;;
-        both) build simulator; build device ;;
     esac
+    echo "$BUILD_NUMBER" > "$DERIVED/current-$1"
 }
 
 # Target selection (--simulator / --device) -> KIND + TARGET (simulator UDID or device name/UDID).
@@ -352,11 +355,11 @@ case "$command" in
         [[ "$SECONDS_ARG" =~ ^[0-9]+$ ]] && [ "$SECONDS_ARG" -ge 1 ] && [ "$SECONDS_ARG" -le 45 ] \
             || die "--seconds must be 1-45"
         [[ "$LABEL" =~ ^[A-Za-z0-9._-]+$ ]] || die "--label must match [A-Za-z0-9._-]+"
+        require_build "$KIND"
         resolve_target
         require_installed
-        current=$(cat "$REPO/ios/BUILD_NUMBER" 2>/dev/null || true)
-        [ "$INSTALLED" = "$current" ] || die "installed build $INSTALLED on $KIND $TARGET is not the current build" \
-            "${current:-none} (ios/BUILD_NUMBER). run '$SCRIPT install'"
+        [ "$INSTALLED" = "$BUILD_NUMBER" ] || die "installed build $INSTALLED on $KIND $TARGET is not the current" \
+            "build $BUILD_NUMBER. run '$SCRIPT install'"
         run_app "$SECONDS_ARG" "$LABEL" "${APP_ARGS[@]+"${APP_ARGS[@]}"}" ;;
     ipa)
         allow --unsigned
