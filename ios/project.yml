@@ -89,6 +89,8 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: org.openmw.openmw
         INFOPLIST_FILE: Morrowind/Info.plist
         GENERATE_INFOPLIST_FILE: NO
+        # increased memory limit (automatic signing adds the capability to the App ID)
+        CODE_SIGN_ENTITLEMENTS: Morrowind/Morrowind.entitlements
         TARGETED_DEVICE_FAMILY: "1,2"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         # OpenMW's static libraries (CMake build by ios/build.sh), SDL_main in libopenmw.a
