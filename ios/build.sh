@@ -20,7 +20,8 @@ Target options: --simulator <name|UDID> | --device <name|UDID>  (default: $DEFAU
   install [target]                  install current build (CFBundleVersion = ios/BUILD_NUMBER) on target
                                     no matching build -> exit 1
   run     [target] [--seconds <1-45>] [--label <name>] [-- <app args>]
-          run installed app non-interactively (default: 45 s), logs + screenshot -> log/. not installed -> exit 1
+          run installed app non-interactively (default: 45 s), logs + screenshot -> log/
+          app not installed or installed build != current build (ios/BUILD_NUMBER) -> exit 1
   ipa     [--unsigned]              current device build -> IPA in DerivedData/ipa. no matching build -> exit 1
   upload  [--notes <text>|--notes-file <path>]
           ipa + release notes ("What's New") -> archive/ -> repo server. no matching device build -> exit 1
@@ -165,12 +166,14 @@ install_app() {
     fi
 }
 
+# Sets INSTALLED = CFBundleVersion of the app installed on the target.
 require_installed() {
     if [ "$KIND" = simulator ]; then
-        xcrun simctl get_app_container "$TARGET" "$BUNDLE_ID" > /dev/null 2>&1
+        INSTALLED=$(plutil -extract CFBundleVersion raw \
+            "$(xcrun simctl get_app_container "$TARGET" "$BUNDLE_ID" 2>/dev/null)/Info.plist" 2>/dev/null)
     else
-        xcrun devicectl device info apps --quiet --device "$TARGET" --bundle-id "$BUNDLE_ID" -j - 2>/dev/null \
-            | python3 -c 'import json, sys; sys.exit(0 if json.load(sys.stdin)["result"]["apps"] else 1)'
+        INSTALLED=$(xcrun devicectl device info apps --quiet --device "$TARGET" --bundle-id "$BUNDLE_ID" -j - 2>/dev/null \
+            | python3 -c 'import json, sys; print(json.load(sys.stdin)["result"]["apps"][0]["bundleVersion"])' 2>/dev/null)
     fi || die "app not installed on $KIND $TARGET. run '$SCRIPT install'"
 }
 
@@ -351,6 +354,9 @@ case "$command" in
         [[ "$LABEL" =~ ^[A-Za-z0-9._-]+$ ]] || die "--label must match [A-Za-z0-9._-]+"
         resolve_target
         require_installed
+        current=$(cat "$REPO/ios/BUILD_NUMBER" 2>/dev/null || true)
+        [ "$INSTALLED" = "$current" ] || die "installed build $INSTALLED on $KIND $TARGET is not the current build" \
+            "${current:-none} (ios/BUILD_NUMBER). run '$SCRIPT install'"
         run_app "$SECONDS_ARG" "$LABEL" "${APP_ARGS[@]+"${APP_ARGS[@]}"}" ;;
     ipa)
         allow --unsigned
