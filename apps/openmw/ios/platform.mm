@@ -5,12 +5,14 @@
 #include <SDL_hints.h>
 
 #import <AVFAudio/AVFAudio.h>
+#import <GameController/GameController.h>
 #import <UIKit/UIKit.h>
 
 #include <mach/mach.h>
 #include <os/proc.h>
 
 #include <cstdint>
+#include <string>
 
 namespace
 {
@@ -25,6 +27,24 @@ namespace
         Log(Debug::Info) << "Memory (" << when << "): footprint " << (ok ? info.phys_footprint / mb : 0) << " MB, peak "
                          << (ok ? info.ledger_phys_footprint_peak / mb : 0) << " MB, available "
                          << os_proc_available_memory() / mb << " MB";
+    }
+
+    // console-style menus unless a keyboard or mouse is connected without a game controller
+    bool wantsControllerMenus()
+    {
+        const bool keyboardOrMouse = GCKeyboard.coalescedKeyboard != nil || GCMouse.mice.count > 0;
+        return GCController.controllers.count > 0 || !keyboardOrMouse;
+    }
+
+    void logInputDevices(NSString* when)
+    {
+        std::string controllers;
+        for (GCController* controller in GCController.controllers)
+            controllers += std::string(controllers.empty() ? "" : ", ") + controller.productCategory.UTF8String;
+        Log(Debug::Info) << "Input devices (" << when.UTF8String << "): keyboard "
+                         << (GCKeyboard.coalescedKeyboard != nil ? "yes" : "no") << ", mice " << GCMouse.mice.count
+                         << ", controllers [" << controllers << "] -> controller menus "
+                         << (wantsControllerMenus() ? "on" : "off");
     }
 }
 
@@ -51,5 +71,14 @@ void OMW::initIosPlatform()
                             object:nil
                              queue:nil
                         usingBlock:^(NSNotification*) { logMemory("background"); }];
+
+        logInputDevices(@"launch");
+        for (NSString* name in @[ GCKeyboardDidConnectNotification, GCKeyboardDidDisconnectNotification,
+                 GCMouseDidConnectNotification, GCMouseDidDisconnectNotification, GCControllerDidConnectNotification,
+                 GCControllerDidDisconnectNotification ])
+            [center addObserverForName:name
+                                object:nil
+                                 queue:nil
+                            usingBlock:^(NSNotification* notification) { logInputDevices(notification.name); }];
     }
 }
