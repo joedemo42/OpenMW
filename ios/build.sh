@@ -136,6 +136,9 @@ require_build() {  # <simulator|device>
 build() {  # <simulator|device|both>
     [ "$1" = both ] && { build simulator; build device; return; }
     rm -f "$DERIVED/current-$1-$CONFIG"
+    # Release strips the executable in place: without a relink (no code change) Xcode's dSYM step would read the
+    # stripped binary and write a dSYM without debug info
+    [ "$CONFIG" = Release ] && rm -f "$(app_path "$1")/Morrowind"
     case "$1" in
         simulator) xcbuild iphonesimulator -destination "generic/platform=iOS Simulator" ;;
         device) xcbuild iphoneos -destination "generic/platform=iOS" ;;
