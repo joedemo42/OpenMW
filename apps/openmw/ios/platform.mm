@@ -2,6 +2,8 @@
 
 #include <components/debug/debuglog.hpp>
 
+#include "../mwgui/windowmanagerimp.hpp"
+
 #include <SDL_hints.h>
 
 #import <AVFAudio/AVFAudio.h>
@@ -29,22 +31,42 @@ namespace
                          << os_proc_available_memory() / mb << " MB";
     }
 
+    // Xcode's CoreDevice adds a virtual mouse ("CoreDevice touchscreenGesture") while a Mac drives the device
+    bool hasUserMouse()
+    {
+        for (GCMouse* mouse in GCMouse.mice)
+            if (![mouse.vendorName hasPrefix:@"CoreDevice"])
+                return true;
+        return false;
+    }
+
     // console-style menus unless a keyboard or mouse is connected without a game controller
     bool wantsControllerMenus()
     {
-        const bool keyboardOrMouse = GCKeyboard.coalescedKeyboard != nil || GCMouse.mice.count > 0;
+        const bool keyboardOrMouse = GCKeyboard.coalescedKeyboard != nil || hasUserMouse();
         return GCController.controllers.count > 0 || !keyboardOrMouse;
     }
 
-    void logInputDevices(NSString* when)
+    // Gamepad-style menus follow the connected devices. ponytail: the window manager saves the switched value to
+    // settings.cfg like any setting; it is decided anew at every launch, so editing [GUI] controller menus there has no
+    // effect on iOS (upgrade path: a runtime override that is not saved).
+    std::string describe(NSArray<id<GCDevice>>* devices)
     {
-        std::string controllers;
-        for (GCController* controller in GCController.controllers)
-            controllers += std::string(controllers.empty() ? "" : ", ") + controller.productCategory.UTF8String;
-        Log(Debug::Info) << "Input devices (" << when.UTF8String << "): keyboard "
-                         << (GCKeyboard.coalescedKeyboard != nil ? "yes" : "no") << ", mice " << GCMouse.mice.count
-                         << ", controllers [" << controllers << "] -> controller menus "
+        std::string result;
+        for (id<GCDevice> device in devices)
+            result += std::string(result.empty() ? "" : ", ") + device.productCategory.UTF8String + " ("
+                + (device.vendorName != nil ? device.vendorName.UTF8String : "?") + ")";
+        return result;
+    }
+
+    void updateInputDevices(NSString* when)
+    {
+        GCKeyboard* keyboard = GCKeyboard.coalescedKeyboard;
+        Log(Debug::Info) << "Input devices (" << when.UTF8String << "): keyboard ["
+                         << describe(keyboard ? @[ keyboard ] : @[]) << "], mice [" << describe(GCMouse.mice)
+                         << "], controllers [" << describe(GCController.controllers) << "] -> controller menus "
                          << (wantsControllerMenus() ? "on" : "off");
+        MWGui::WindowManager::requestControllerMenus(wantsControllerMenus());
     }
 }
 
@@ -72,13 +94,14 @@ void OMW::initIosPlatform()
                              queue:nil
                         usingBlock:^(NSNotification*) { logMemory("background"); }];
 
-        logInputDevices(@"launch");
+        // GameController reports connected devices shortly after launch, as connect notifications
+        updateInputDevices(@"launch");
         for (NSString* name in @[ GCKeyboardDidConnectNotification, GCKeyboardDidDisconnectNotification,
                  GCMouseDidConnectNotification, GCMouseDidDisconnectNotification, GCControllerDidConnectNotification,
                  GCControllerDidDisconnectNotification ])
             [center addObserverForName:name
                                 object:nil
-                                 queue:nil
-                            usingBlock:^(NSNotification* notification) { logInputDevices(notification.name); }];
+                                 queue:NSOperationQueue.mainQueue
+                            usingBlock:^(NSNotification* notification) { updateInputDevices(notification.name); }];
     }
 }

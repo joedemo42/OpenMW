@@ -3,8 +3,8 @@
 
 namespace OMW
 {
-    /// iOS app setup before the engine starts SDL: home indicator, audio session, memory log,
-    /// input device log.
+    /// iOS app setup before the engine starts SDL: home indicator, audio session, memory log, gamepad-style menus
+    /// by the connected input devices.
     void initIosPlatform();
 }
 
