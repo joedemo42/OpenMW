@@ -8,6 +8,7 @@
 
 #include <components/misc/rng.hpp>
 #include <components/misc/strings/format.hpp>
+#include <components/widgets/box.hpp>
 #include <components/widgets/numericeditbox.hpp>
 
 #include "../mwbase/dialoguemanager.hpp"
@@ -763,6 +764,18 @@ namespace MWGui
 
         mItemView->setActiveControllerWindow(active);
         WindowBase::setActiveControllerWindow(active);
+    }
+
+    void TradeWindow::onControllerMenusChanged()
+    {
+        // L1 and R1 images next to the tabs, as the constructor sets them up
+        for (std::string_view name : { "BtnL1Image", "BtnR1Image" })
+        {
+            MyGUI::Widget* image = getWidget(name);
+            image->setVisible(Settings::gui().mControllerMenus);
+            image->setUserString("Hidden", Settings::gui().mControllerMenus ? "false" : "true");
+        }
+        getWidget("Categories")->castType<Gui::HBox>()->notifyChildrenSizeChanged();
     }
 
     void TradeWindow::updateItemView()

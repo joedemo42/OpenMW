@@ -54,6 +54,7 @@ namespace MWGui
     protected:
         bool onControllerButtonEvent(const SDL_ControllerButtonEvent& arg) override;
         void setActiveControllerWindow(bool active) override;
+        void onControllerMenusChanged() override;
 
     private:
         void addSkills(const std::vector<ESM::RefId>& skills, const std::string& titleId,

@@ -71,6 +71,9 @@ namespace MWGui
         /// Called when GUI viewport changes size
         virtual void onResChange(int width, int height) {}
 
+        /// Called when controller menus are switched at runtime
+        virtual void onControllerMenusChanged() {}
+
         virtual void onDeleteCustomData(const MWWorld::Ptr& ptr) {}
 
         virtual void onInventoryUpdate(const MWWorld::Ptr& ptr) {}

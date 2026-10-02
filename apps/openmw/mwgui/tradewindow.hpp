@@ -48,6 +48,7 @@ namespace MWGui
 
         bool onControllerButtonEvent(const SDL_ControllerButtonEvent& arg) override;
         void setActiveControllerWindow(bool active) override;
+        void onControllerMenusChanged() override;
 
     private:
         friend class InventoryWindow;

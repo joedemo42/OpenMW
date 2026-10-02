@@ -17,6 +17,7 @@
 #include <components/myguiplatform/myguitexture.hpp>
 
 #include <components/settings/values.hpp>
+#include <components/widgets/box.hpp>
 
 #include "../mwbase/environment.hpp"
 #include "../mwbase/inputmanager.hpp"
@@ -1114,5 +1115,17 @@ namespace MWGui
 
         mItemView->setActiveControllerWindow(active);
         WindowBase::setActiveControllerWindow(active);
+    }
+
+    void InventoryWindow::onControllerMenusChanged()
+    {
+        // L1 and R1 images next to the tabs, as the constructor sets them up
+        for (std::string_view name : { "BtnL1Image", "BtnR1Image" })
+        {
+            MyGUI::Widget* image = getWidget(name);
+            image->setVisible(Settings::gui().mControllerMenus);
+            image->setUserString("Hidden", Settings::gui().mControllerMenus ? "false" : "true");
+        }
+        getWidget("Categories")->castType<Gui::HBox>()->notifyChildrenSizeChanged();
     }
 }

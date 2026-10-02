@@ -763,4 +763,9 @@ namespace MWGui
 
         WindowBase::setActiveControllerWindow(active);
     }
+
+    void StatsWindow::onControllerMenusChanged()
+    {
+        setPinButtonVisible(!Settings::gui().mControllerMenus);
+    }
 }

@@ -404,6 +404,11 @@ namespace MWGui
         void restoreControllerTooltips() override;
         void updateControllerButtonsOverlay() override;
 
+        /// Switch controller menus at runtime, applied once no menu but the main menu is open. Windows set up their
+        /// controller parts when they are created, so a request before that creates them with controller menus on.
+        /// Callable before the window manager exists (platform code); main thread only.
+        static void requestControllerMenus(bool enabled);
+
         // Used in Lua bindings
         const std::vector<GuiMode>& getGuiModeStack() const override { return mGuiModes; }
         void setDisabledByLua(std::string_view windowId, bool disabled) override;
@@ -522,6 +527,8 @@ namespace MWGui
         bool mControllerTooltipEnabled = false;
 
         void reapplyActiveControllerWindow();
+        void applyControllerMenus();
+        void restoreTrackedWindows(int width, int height);
 
         std::unique_ptr<SDLUtil::SDLCursorManager> mCursorManager;
 

@@ -336,4 +336,9 @@ namespace MWGui
 
         WindowBase::setActiveControllerWindow(active);
     }
+
+    void SpellWindow::onControllerMenusChanged()
+    {
+        setPinButtonVisible(!Settings::gui().mControllerMenus);
+    }
 }

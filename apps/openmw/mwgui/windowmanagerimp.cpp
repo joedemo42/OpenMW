@@ -4,6 +4,7 @@
 #include <cassert>
 #include <chrono>
 #include <filesystem>
+#include <optional>
 #include <thread>
 
 #include <osgViewer/Viewer>
@@ -129,6 +130,9 @@ namespace MWGui
 {
     namespace
     {
+        // Controller menus requested by WindowManager::requestControllerMenus, not yet applied
+        std::optional<bool> sRequestedControllerMenus;
+
         Settings::SettingValue<bool>* findHiddenSetting(GuiWindow window)
         {
             switch (window)
@@ -311,6 +315,10 @@ namespace MWGui
 
     void WindowManager::initUI()
     {
+        // Windows set up their controller parts here; switching at runtime only toggles them
+        if (sRequestedControllerMenus)
+            Settings::gui().mControllerMenus.set(true);
+
         // Get size info from the Gui object
         int w = MyGUI::RenderManager::getInstance().getViewSize().width;
         int h = MyGUI::RenderManager::getInstance().getViewSize().height;
@@ -997,6 +1005,7 @@ namespace MWGui
     void WindowManager::update(float frameDuration)
     {
         handleScheduledMessageBoxes();
+        applyControllerMenus();
 
         bool gameRunning
             = MWBase::Environment::get().getStateManager()->getState() != MWBase::StateManager::State_NoGame;
@@ -1346,14 +1355,7 @@ namespace MWGui
         if (!mHud)
             return; // UI not initialized yet
 
-        for (const auto& [window, settings] : mTrackedWindows)
-        {
-            const WindowRectSettingValues& rect = settings.mIsMaximized ? settings.mMaximized : settings.mRegular;
-            window->setPosition(MyGUI::IntPoint(static_cast<int>(rect.mX * x), static_cast<int>(rect.mY * y)));
-            window->setSize(MyGUI::IntSize(static_cast<int>(rect.mW * x), static_cast<int>(rect.mH * y)));
-
-            WindowBase::clampWindowCoordinates(window);
-        }
+        restoreTrackedWindows(x, y);
 
         for (const auto& window : mWindows)
             window->onResChange(x, y);
@@ -1366,6 +1368,18 @@ namespace MWGui
         MWBase::Environment::get().getLuaManager()->viewportResized(x, y);
 
         // TODO: check if any windows are now off-screen and move them back if so
+    }
+
+    void WindowManager::restoreTrackedWindows(int width, int height)
+    {
+        for (const auto& [window, settings] : mTrackedWindows)
+        {
+            const WindowRectSettingValues& rect = settings.mIsMaximized ? settings.mMaximized : settings.mRegular;
+            window->setPosition(MyGUI::IntPoint(static_cast<int>(rect.mX * width), static_cast<int>(rect.mY * height)));
+            window->setSize(MyGUI::IntSize(static_cast<int>(rect.mW * width), static_cast<int>(rect.mH * height)));
+
+            WindowBase::clampWindowCoordinates(window);
+        }
     }
 
     bool WindowManager::isWindowVisible() const
@@ -2733,6 +2747,48 @@ namespace MWGui
         // Restore tooltip visibility if user has them enabled but they were hidden by mouse movement
         if (mControllerTooltipEnabled && !mControllerTooltipVisible)
             setControllerTooltipVisible(true);
+    }
+
+    void WindowManager::requestControllerMenus(bool enabled)
+    {
+        sRequestedControllerMenus = enabled;
+    }
+
+    void WindowManager::applyControllerMenus()
+    {
+        // Windows get their controller layout when a menu opens, so switch between menus only (the main menu is a
+        // single window).
+        const bool betweenMenus = mGuiModes.empty() || (mGuiModes.size() == 1 && mGuiModes.back() == GM_MainMenu);
+        if (!sRequestedControllerMenus || !mHud || !betweenMenus || !mCurrentModals.empty())
+            return;
+
+        const bool enabled = *sRequestedControllerMenus;
+        sRequestedControllerMenus.reset();
+        if (enabled == Settings::gui().mControllerMenus)
+            return;
+
+        Settings::gui().mControllerMenus.set(enabled);
+        for (const auto& window : mWindows)
+            window->onControllerMenusChanged();
+
+        // as updatePinnedWindows: controller menus pin only the map. ponytail: unpinning saves the pin settings, so
+        // pins set without controller menus are lost after a switch to them (upgrade path: unpin without saving)
+        mInventoryWindow->setPinned(!enabled && Settings::windows().mInventoryPin);
+        mSpellWindow->setPinned(!enabled && Settings::windows().mSpellsPin);
+        mStatsWindow->setPinned(!enabled && Settings::windows().mStatsPin);
+
+        if (!enabled)
+        {
+            mControllerButtonsOverlay->setVisible(false);
+            mInventoryTabsOverlay->setVisible(false);
+            // undo the controller layout of the inventory mode windows
+            const MyGUI::IntSize& viewSize = MyGUI::RenderManager::getInstance().getViewSize();
+            restoreTrackedWindows(viewSize.width, viewSize.height);
+        }
+
+        updateVisible();
+        reapplyActiveControllerWindow();
+        updateControllerButtonsOverlay();
     }
 
     void WindowManager::updateControllerButtonsOverlay()
