@@ -2117,10 +2117,15 @@ namespace MWGui
 
         mVideoWidget->eventKeyButtonPressed.clear();
         mVideoBackground->eventKeyButtonPressed.clear();
+        mVideoWidget->eventMouseButtonClick.clear();
+        mVideoBackground->eventMouseButtonClick.clear();
         if (allowSkipping)
         {
             mVideoWidget->eventKeyButtonPressed += MyGUI::newDelegate(this, &WindowManager::onVideoKeyPressed);
             mVideoBackground->eventKeyButtonPressed += MyGUI::newDelegate(this, &WindowManager::onVideoKeyPressed);
+            // a click, or a tap on touch screens
+            mVideoWidget->eventMouseButtonClick += MyGUI::newDelegate(this, &WindowManager::onVideoClicked);
+            mVideoBackground->eventMouseButtonClick += MyGUI::newDelegate(this, &WindowManager::onVideoClicked);
         }
 
         enableScene(false);
@@ -2254,6 +2259,11 @@ namespace MWGui
     {
         if (key == MyGUI::KeyCode::Escape)
             mVideoWidget->stop();
+    }
+
+    void WindowManager::onVideoClicked(MyGUI::Widget* /*sender*/)
+    {
+        mVideoWidget->stop();
     }
 
     void WindowManager::updatePinnedWindows()
