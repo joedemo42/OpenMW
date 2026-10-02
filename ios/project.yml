@@ -60,6 +60,7 @@ targets:
       - sdk: CoreHaptics.framework
         weak: true
       - sdk: CoreMotion.framework
+      - sdk: CoreText.framework
       - sdk: CoreVideo.framework
       - sdk: Foundation.framework
       - sdk: GameController.framework
