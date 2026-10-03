@@ -1,0 +1,14 @@
+--- a/src/gallium/drivers/zink/zink_blit.c
++++ b/src/gallium/drivers/zink/zink_blit.c
+@@ -479,6 +479,11 @@
+       ctx->in_rp = in_rp;
+       ctx->gfx_pipeline_state.rp_state = zink_update_rendering_info(ctx);
+       ctx->rp_changed = rp_changed;
++      /* the blit's render pass recomputed ctx->dynamic_fb (and cleared rp_loadop_changed) for its own framebuffer:
++       * recompute the attachment info before the next render pass on the restored framebuffer, or that pass
++       * reuses stale loadOps, e.g. CLEAR from an already applied clear
++       */
++      ctx->rp_loadop_changed = true;
+       ctx->rp_tc_info_updated |= rp_tc_info_updated;
+       ctx->queries_disabled = queries_disabled;
+       ctx->dynamic_fb.tc_info.data = tc_data;
