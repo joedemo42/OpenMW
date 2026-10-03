@@ -1,0 +1,13 @@
+--- a/src/gallium/drivers/zink/zink_screen.c
++++ b/src/gallium/drivers/zink/zink_screen.c
+@@ -3011,6 +3011,10 @@
+       screen->info.have_KHR_push_descriptor = false;
+       /* Interpolation is not consistent between two triangles of a rectangle. */
+       screen->driver_workarounds.inconsistent_interpolation = true;
++      break;
++   case VK_DRIVER_ID_MOLTENVK:
++      /* MoltenVK copies the descriptor data of every push into the command buffer: costly per draw */
++      screen->info.have_KHR_push_descriptor = false;
+       break;
+    default:
+       break;
