@@ -102,7 +102,7 @@ diff -ruN a/src/video/uikit/SDL_uikitegl.h b/src/video/uikit/SDL_uikitegl.h
 diff -ruN a/src/video/uikit/SDL_uikitegl.m b/src/video/uikit/SDL_uikitegl.m
 --- a/src/video/uikit/SDL_uikitegl.m	1970-01-01 01:00:00
 +++ b/src/video/uikit/SDL_uikitegl.m	2026-09-30 07:36:35
-@@ -0,0 +1,292 @@
+@@ -0,0 +1,470 @@
 +/*
 +  Simple DirectMedia Layer
 +  Copyright (C) 1997-2025 Sam Lantinga <slouken@libsdl.org>
@@ -132,8 +132,13 @@ diff -ruN a/src/video/uikit/SDL_uikitegl.m b/src/video/uikit/SDL_uikitegl.m
 + * platform; SwapWindow reads the frame back and presents it through the CAMetalLayer of an
 + * SDL Metal view, which also becomes the window's (input handling) view.
 + *
-+ * ponytail: one readback + copy per frame. Zero-copy would need the EGL implementation to
-+ * render into the Metal drawable (e.g. VK_EXT_metal_objects in zink). */
++ * With pixel pack buffers and sync objects the readback is asynchronous: the frame of swap N
++ * is read into a buffer and presented at swap N+1, so SwapWindow does not wait for the GPU to
++ * finish the frame just submitted. With a persistent, page-aligned mapping (GL_ARB_buffer_storage)
++ * Metal copies straight out of that buffer, otherwise the buffer is copied on the CPU.
++ *
++ * ponytail: one frame of latency and one GPU readback per frame. Zero-copy would need the EGL
++ * implementation to render into the Metal drawable (e.g. VK_EXT_metal_objects in zink). */
 +
 +#include "SDL_uikitegl.h"
 +#include "SDL_uikitmetalview.h"
@@ -141,16 +146,49 @@ diff -ruN a/src/video/uikit/SDL_uikitegl.m b/src/video/uikit/SDL_uikitegl.m
 +#include "../SDL_egl_c.h"
 +#include "SDL_opengl.h"
 +
++#include <mach/vm_page_size.h>
++
 +#ifndef EGL_PLATFORM_SURFACELESS_MESA
 +#define EGL_PLATFORM_SURFACELESS_MESA 0x31DD
 +#endif
 +#ifndef GL_PACK_INVERT_MESA
 +#define GL_PACK_INVERT_MESA 0x8758
 +#endif
++#ifndef GL_MAP_PERSISTENT_BIT
++#define GL_MAP_PERSISTENT_BIT 0x0040
++#endif
++#ifndef GL_MAP_COHERENT_BIT
++#define GL_MAP_COHERENT_BIT 0x0080
++#endif
++
++/* frames in flight with an asynchronous readback: the one read back now and the one presented */
++#define UIKIT_EGL_FRAMES 2
 +
 +static PFNGLBINDBUFFERPROC UIKit_EGL_glBindBuffer;
 +static PFNGLBINDFRAMEBUFFERPROC UIKit_EGL_glBindFramebuffer;
++static PFNGLGENBUFFERSPROC UIKit_EGL_glGenBuffers;
++static PFNGLDELETEBUFFERSPROC UIKit_EGL_glDeleteBuffers;
++static PFNGLBUFFERDATAPROC UIKit_EGL_glBufferData;
++static PFNGLBUFFERSTORAGEPROC UIKit_EGL_glBufferStorage;
++static PFNGLMAPBUFFERRANGEPROC UIKit_EGL_glMapBufferRange;
++static PFNGLUNMAPBUFFERPROC UIKit_EGL_glUnmapBuffer;
++static PFNGLFENCESYNCPROC UIKit_EGL_glFenceSync;
++static PFNGLCLIENTWAITSYNCPROC UIKit_EGL_glClientWaitSync;
++static PFNGLDELETESYNCPROC UIKit_EGL_glDeleteSync;
 +static SDL_bool UIKit_EGL_hasPackInvert;
++static SDL_bool UIKit_EGL_hasAsyncReadback;
++
++/* One frame's readback target and Metal copy source. */
++@interface SDL_uikiteglframe : NSObject
++@property (nonatomic) GLuint buffer;  /* pixel pack buffer, 0: synchronous readback into pixels */
++@property (nonatomic) void *map;      /* persistent mapping of buffer, which pixels wraps */
++@property (nonatomic) GLsync fence;   /* pending readback */
++@property (nonatomic, strong) id<MTLBuffer> pixels;
++@property (nonatomic, strong) id<MTLCommandBuffer> transfer; /* Metal copy out of pixels */
++@end
++
++@implementation SDL_uikiteglframe
++@end
 +
 +/* EGL surface and Metal presentation of one window. */
 +@interface SDL_uikiteglwindow : NSObject
@@ -160,8 +198,8 @@ diff -ruN a/src/video/uikit/SDL_uikitegl.m b/src/video/uikit/SDL_uikitegl.m
 +@property (nonatomic) SDL_MetalView view;
 +@property (nonatomic, strong) CAMetalLayer *layer;
 +@property (nonatomic, strong) id<MTLCommandQueue> queue;
-+@property (nonatomic, strong) id<MTLBuffer> pixels;
-+@property (nonatomic, strong) id<MTLCommandBuffer> lastFrame;
++@property (nonatomic, strong) NSArray<SDL_uikiteglframe *> *frames; /* created at the first swap */
++@property (nonatomic) unsigned swaps;
 +@end
 +
 +@implementation SDL_uikiteglwindow
@@ -170,7 +208,10 @@ diff -ruN a/src/video/uikit/SDL_uikitegl.m b/src/video/uikit/SDL_uikitegl.m
 +{
 +    SDL_VideoDevice *_this = SDL_GetVideoDevice();
 +
-+    [self.lastFrame waitUntilCompleted];
++    /* GL objects go with the context */
++    for (SDL_uikiteglframe *frame in self.frames) {
++        [frame.transfer waitUntilCompleted];
++    }
 +    if (_this && _this->egl_data && self.surface != EGL_NO_SURFACE) {
 +        SDL_EGL_DestroySurface(_this, self.surface);
 +    }
@@ -181,11 +222,99 @@ diff -ruN a/src/video/uikit/SDL_uikitegl.m b/src/video/uikit/SDL_uikitegl.m
 +
 +@end
 +
-+/* (Re)creates the pbuffer and the readback buffer with the given size. */
++/* Releases the readback frames (current context required for their GL objects). */
++static void UIKit_EGL_DestroyFrames(SDL_uikiteglwindow *egl)
++{
++    GLint pack_buffer = 0;
++
++    if (UIKit_EGL_hasAsyncReadback) {
++        glGetIntegerv(GL_PIXEL_PACK_BUFFER_BINDING, &pack_buffer);
++    }
++    for (SDL_uikiteglframe *frame in egl.frames) {
++        GLuint buffer = frame.buffer;
++        [frame.transfer waitUntilCompleted];
++        frame.transfer = nil;
++        frame.pixels = nil; /* before the mapping it may wrap goes away */
++        if (frame.fence) {
++            UIKit_EGL_glDeleteSync(frame.fence);
++        }
++        if (frame.map) {
++            UIKit_EGL_glBindBuffer(GL_PIXEL_PACK_BUFFER, frame.buffer);
++            UIKit_EGL_glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
++        }
++        if (buffer) {
++            if ((GLint)buffer == pack_buffer) {
++                pack_buffer = 0;
++            }
++            UIKit_EGL_glDeleteBuffers(1, &buffer);
++        }
++    }
++    if (UIKit_EGL_hasAsyncReadback) {
++        UIKit_EGL_glBindBuffer(GL_PIXEL_PACK_BUFFER, pack_buffer);
++    }
++    egl.frames = nil;
++}
++
++/* Creates the readback frames for the current size. */
++static int UIKit_EGL_CreateFrames(SDL_uikiteglwindow *egl)
++{
++    const NSUInteger size = ((NSUInteger)egl.width * egl.height * 4 + vm_page_size - 1) & ~(NSUInteger)(vm_page_size - 1);
++    NSMutableArray<SDL_uikiteglframe *> *frames = [NSMutableArray array];
++    GLint pack_buffer = 0;
++    int i;
++
++    if (UIKit_EGL_hasAsyncReadback) {
++        glGetIntegerv(GL_PIXEL_PACK_BUFFER_BINDING, &pack_buffer);
++    }
++    for (i = 0; i < (UIKit_EGL_hasAsyncReadback ? UIKIT_EGL_FRAMES : 1); i++) {
++        SDL_uikiteglframe *frame = [[SDL_uikiteglframe alloc] init];
++        [frames addObject:frame];
++        if (UIKit_EGL_hasAsyncReadback) {
++            GLuint buffer = 0;
++            UIKit_EGL_glGenBuffers(1, &buffer);
++            frame.buffer = buffer;
++            UIKit_EGL_glBindBuffer(GL_PIXEL_PACK_BUFFER, buffer);
++            if (UIKit_EGL_glBufferStorage) {
++                const GLbitfield flags = GL_MAP_READ_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT;
++                void *map;
++                UIKit_EGL_glBufferStorage(GL_PIXEL_PACK_BUFFER, (GLsizeiptr)size, NULL, flags);
++                map = UIKit_EGL_glMapBufferRange(GL_PIXEL_PACK_BUFFER, 0, (GLsizeiptr)size, flags);
++                if (map && ((uintptr_t)map & (vm_page_size - 1)) == 0) {
++                    frame.pixels = [egl.layer.device newBufferWithBytesNoCopy:map
++                                                                       length:size
++                                                                      options:MTLResourceStorageModeShared
++                                                                  deallocator:nil];
++                }
++                if (frame.pixels) {
++                    frame.map = map;
++                } else if (map) {
++                    UIKit_EGL_glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
++                }
++            } else {
++                UIKit_EGL_glBufferData(GL_PIXEL_PACK_BUFFER, (GLsizeiptr)size, NULL, GL_STREAM_READ);
++            }
++        }
++        if (!frame.pixels) {
++            frame.pixels = [egl.layer.device newBufferWithLength:size options:MTLResourceStorageModeShared];
++        }
++    }
++    if (UIKit_EGL_hasAsyncReadback) {
++        UIKit_EGL_glBindBuffer(GL_PIXEL_PACK_BUFFER, pack_buffer);
++    }
++    egl.frames = frames;
++    for (SDL_uikiteglframe *frame in frames) {
++        if (!frame.pixels) {
++            UIKit_EGL_DestroyFrames(egl);
++            return SDL_OutOfMemory();
++        }
++    }
++    return 0;
++}
++
++/* (Re)creates the pbuffer with the given size; the readback frames follow at the next swap. */
 +static int UIKit_EGL_SetSize(_THIS, SDL_uikiteglwindow *egl, int w, int h)
 +{
 +    EGLSurface surface, old = egl.surface;
-+    id<MTLBuffer> pixels;
 +
 +    w = SDL_max(w, 1);
 +    h = SDL_max(h, 1);
@@ -193,16 +322,13 @@ diff -ruN a/src/video/uikit/SDL_uikitegl.m b/src/video/uikit/SDL_uikitegl.m
 +    if (surface == EGL_NO_SURFACE) {
 +        return -1;
 +    }
-+    pixels = [egl.layer.device newBufferWithLength:(NSUInteger)w * h * 4 options:MTLResourceStorageModeShared];
-+    if (!pixels) {
-+        SDL_EGL_DestroySurface(_this, surface);
-+        return SDL_OutOfMemory();
++    if (egl.frames) {
++        UIKit_EGL_DestroyFrames(egl);
 +    }
 +
 +    egl.surface = surface;
 +    egl.width = w;
 +    egl.height = h;
-+    egl.pixels = pixels;
 +
 +    if (old != EGL_NO_SURFACE) {
 +        /* keep rendering with the current context, now into the new surface */
@@ -214,15 +340,16 @@ diff -ruN a/src/video/uikit/SDL_uikitegl.m b/src/video/uikit/SDL_uikitegl.m
 +    return 0;
 +}
 +
-+/* Reads the default framebuffer (the pbuffer) top-down into egl.pixels, leaving GL state untouched. */
-+static void UIKit_EGL_ReadPixels(SDL_uikiteglwindow *egl)
++/* Reads the default framebuffer (the pbuffer) top-down into frame (its pack buffer, else its pixels),
++ * leaving GL state untouched. */
++static void UIKit_EGL_ReadPixels(SDL_uikiteglwindow *egl, SDL_uikiteglframe *frame)
 +{
 +    GLint pack_buffer = 0, read_framebuffer = 0, read_buffer = 0, invert = 0;
 +    GLint alignment = 4, row_length = 0, skip_rows = 0, skip_pixels = 0;
 +
 +    if (UIKit_EGL_glBindBuffer) {
 +        glGetIntegerv(GL_PIXEL_PACK_BUFFER_BINDING, &pack_buffer);
-+        UIKit_EGL_glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
++        UIKit_EGL_glBindBuffer(GL_PIXEL_PACK_BUFFER, frame.buffer);
 +    }
 +    if (UIKit_EGL_glBindFramebuffer) {
 +        glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &read_framebuffer);
@@ -243,7 +370,7 @@ diff -ruN a/src/video/uikit/SDL_uikitegl.m b/src/video/uikit/SDL_uikitegl.m
 +    glPixelStorei(GL_PACK_SKIP_ROWS, 0);
 +    glPixelStorei(GL_PACK_SKIP_PIXELS, 0);
 +
-+    glReadPixels(0, 0, egl.width, egl.height, GL_BGRA, GL_UNSIGNED_BYTE, egl.pixels.contents);
++    glReadPixels(0, 0, egl.width, egl.height, GL_BGRA, GL_UNSIGNED_BYTE, frame.buffer ? NULL : frame.pixels.contents);
 +
 +    glPixelStorei(GL_PACK_SKIP_PIXELS, skip_pixels);
 +    glPixelStorei(GL_PACK_SKIP_ROWS, skip_rows);
@@ -311,6 +438,21 @@ diff -ruN a/src/video/uikit/SDL_uikitegl.m b/src/video/uikit/SDL_uikitegl.m
 +            UIKit_EGL_glBindBuffer = SDL_GL_GetProcAddress("glBindBuffer");
 +            UIKit_EGL_glBindFramebuffer = SDL_GL_GetProcAddress("glBindFramebuffer");
 +            UIKit_EGL_hasPackInvert = SDL_GL_ExtensionSupported("GL_MESA_pack_invert");
++            UIKit_EGL_glGenBuffers = SDL_GL_GetProcAddress("glGenBuffers");
++            UIKit_EGL_glDeleteBuffers = SDL_GL_GetProcAddress("glDeleteBuffers");
++            UIKit_EGL_glBufferData = SDL_GL_GetProcAddress("glBufferData");
++            UIKit_EGL_glMapBufferRange = SDL_GL_GetProcAddress("glMapBufferRange");
++            UIKit_EGL_glUnmapBuffer = SDL_GL_GetProcAddress("glUnmapBuffer");
++            UIKit_EGL_glFenceSync = SDL_GL_GetProcAddress("glFenceSync");
++            UIKit_EGL_glClientWaitSync = SDL_GL_GetProcAddress("glClientWaitSync");
++            UIKit_EGL_glDeleteSync = SDL_GL_GetProcAddress("glDeleteSync");
++            UIKit_EGL_glBufferStorage = SDL_GL_ExtensionSupported("GL_ARB_buffer_storage") ?
++                SDL_GL_GetProcAddress("glBufferStorage") : NULL;
++            /* pixel pack buffers are core in OpenGL 2.1 */
++            UIKit_EGL_hasAsyncReadback = UIKit_EGL_glBindBuffer && UIKit_EGL_glGenBuffers && UIKit_EGL_glDeleteBuffers &&
++                UIKit_EGL_glBufferData && UIKit_EGL_glMapBufferRange && UIKit_EGL_glUnmapBuffer &&
++                UIKit_EGL_glFenceSync && UIKit_EGL_glClientWaitSync && UIKit_EGL_glDeleteSync &&
++                SDL_GL_ExtensionSupported("GL_ARB_sync") && SDL_GL_ExtensionSupported("GL_ARB_map_buffer_range");
 +        }
 +        return context;
 +    }
@@ -350,6 +492,7 @@ diff -ruN a/src/video/uikit/SDL_uikitegl.m b/src/video/uikit/SDL_uikitegl.m
 +    @autoreleasepool {
 +        SDL_WindowData *data = (__bridge SDL_WindowData *)window->driverdata;
 +        SDL_uikiteglwindow *egl = data.egl;
++        SDL_uikiteglframe *present;
 +        id<CAMetalDrawable> drawable;
 +        CGSize size;
 +
@@ -357,30 +500,65 @@ diff -ruN a/src/video/uikit/SDL_uikitegl.m b/src/video/uikit/SDL_uikitegl.m
 +            return SDL_SetError("No OpenGL context for this window");
 +        }
 +
-+        /* the previous copy has to be done before its source gets overwritten */
-+        [egl.lastFrame waitUntilCompleted];
-+        UIKit_EGL_ReadPixels(egl);
++        if (!egl.frames && UIKit_EGL_CreateFrames(egl) < 0) {
++            return -1;
++        }
++        if (UIKit_EGL_hasAsyncReadback) {
++            SDL_uikiteglframe *frame = egl.frames[egl.swaps % UIKIT_EGL_FRAMES];
++            present = egl.frames[(egl.swaps + UIKIT_EGL_FRAMES - 1) % UIKIT_EGL_FRAMES];
++            egl.swaps++;
 +
-+        drawable = [egl.layer nextDrawable];
-+        if (drawable) {
-+            id<MTLCommandBuffer> frame = [egl.queue commandBuffer];
-+            id<MTLBlitCommandEncoder> blit = [frame blitCommandEncoder];
-+            const NSUInteger w = SDL_min((NSUInteger)egl.width, drawable.texture.width);
-+            const NSUInteger h = SDL_min((NSUInteger)egl.height, drawable.texture.height);
++            /* start this frame's readback, then present the previous frame's */
++            [frame.transfer waitUntilCompleted];
++            frame.transfer = nil;
++            UIKit_EGL_ReadPixels(egl, frame);
++            frame.fence = UIKit_EGL_glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
++            glFlush();
++            if (present.fence) {
++                UIKit_EGL_glClientWaitSync(present.fence, GL_SYNC_FLUSH_COMMANDS_BIT, 1000000000ull);
++                UIKit_EGL_glDeleteSync(present.fence);
++                present.fence = NULL;
++                if (!present.map) {
++                    GLint pack_buffer = 0;
++                    void *map;
++                    glGetIntegerv(GL_PIXEL_PACK_BUFFER_BINDING, &pack_buffer);
++                    UIKit_EGL_glBindBuffer(GL_PIXEL_PACK_BUFFER, present.buffer);
++                    map = UIKit_EGL_glMapBufferRange(GL_PIXEL_PACK_BUFFER, 0, (GLsizeiptr)egl.width * egl.height * 4, GL_MAP_READ_BIT);
++                    if (map) {
++                        SDL_memcpy(present.pixels.contents, map, (size_t)egl.width * egl.height * 4);
++                        UIKit_EGL_glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
++                    }
++                    UIKit_EGL_glBindBuffer(GL_PIXEL_PACK_BUFFER, pack_buffer);
++                }
++            } else {
++                present = nil; /* first frame of this size: nothing read back yet */
++            }
++        } else {
++            present = egl.frames[0];
++            /* the previous copy has to be done before its source gets overwritten */
++            [present.transfer waitUntilCompleted];
++            UIKit_EGL_ReadPixels(egl, present);
++        }
 +
-+            [blit copyFromBuffer:egl.pixels
++        /* a frame of another size than the drawable (size change in progress) is not presented */
++        drawable = present ? [egl.layer nextDrawable] : nil;
++        if (drawable && drawable.texture.width == (NSUInteger)egl.width && drawable.texture.height == (NSUInteger)egl.height) {
++            id<MTLCommandBuffer> transfer = [egl.queue commandBuffer];
++            id<MTLBlitCommandEncoder> blit = [transfer blitCommandEncoder];
++
++            [blit copyFromBuffer:present.pixels
 +                       sourceOffset:0
 +                  sourceBytesPerRow:(NSUInteger)egl.width * 4
 +                sourceBytesPerImage:(NSUInteger)egl.width * egl.height * 4
-+                         sourceSize:MTLSizeMake(w, h, 1)
++                         sourceSize:MTLSizeMake((NSUInteger)egl.width, (NSUInteger)egl.height, 1)
 +                          toTexture:drawable.texture
 +                   destinationSlice:0
 +                   destinationLevel:0
 +                  destinationOrigin:MTLOriginMake(0, 0, 0)];
 +            [blit endEncoding];
-+            [frame presentDrawable:drawable];
-+            [frame commit];
-+            egl.lastFrame = frame;
++            [transfer presentDrawable:drawable];
++            [transfer commit];
++            present.transfer = transfer;
 +        }
 +
 +        /* follow size changes of the view (rotation, resizable windows) from the next frame on */
