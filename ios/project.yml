@@ -14,7 +14,8 @@ targets:
     type: application
     platform: iOS
     sources:
-      - Morrowind
+      - path: Morrowind
+        excludes: ["settings.cfg"]  # staged into Morrowind.app/openmw by the resources script
     dependencies:
       - framework: ../ios-deps/artifacts/SDL2.xcframework
         embed: false
@@ -73,7 +74,8 @@ targets:
       - sdk: libsqlite3.tbd
       - sdk: libz.tbd
     postBuildScripts:
-      # OpenMW's local config, settings defaults and resources, staged by its CMake build -> Morrowind.app/openmw
+      # OpenMW's local config, settings defaults and resources, staged by its CMake build, and the iOS settings
+      # defaults (loaded as additional defaults from the local config dir) -> Morrowind.app/openmw
       - name: OpenMW resources
         basedOnDependencyAnalysis: false
         # declared so code signing re-runs after it (a changed resource would break the seal otherwise)
@@ -83,7 +85,8 @@ targets:
           dest="$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/openmw"
           mkdir -p "$dest"
           rsync -a --delete "$OPENMW_BUILD_DIR/resources" "$OPENMW_BUILD_DIR/openmw.cfg" \
-              "$OPENMW_BUILD_DIR/defaults.bin" "$OPENMW_BUILD_DIR/gamecontrollerdb.txt" "$dest/"
+              "$OPENMW_BUILD_DIR/defaults.bin" "$OPENMW_BUILD_DIR/gamecontrollerdb.txt" "$SRCROOT/Morrowind/settings.cfg" \
+              "$dest/"
     settings:
       base:
         PRODUCT_NAME: Morrowind
