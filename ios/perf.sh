@@ -110,6 +110,92 @@ for line in (console.open(errors="replace") if console.exists() else []):
     if re.search(r"Memory \(|Terminating app|uncaught exception", line):
         print(line.rstrip())
 EOF
+    [ -d "$1/trace.trace" ] || return 0
+    python3 - "$1" "$APP.dSYM" <<'EOF'
+import collections, pathlib, re, subprocess, sys, xml.etree.ElementTree as ET
+
+d, dsym = pathlib.Path(sys.argv[1]), sys.argv[2]
+xml = d / "trace-profile.xml"
+if not xml.exists():
+    with xml.open("w") as f:
+        subprocess.run(["xcrun", "xctrace", "export", "--input", str(d / "trace.trace"), "--xpath",
+                        '/trace-toc/run[@number="1"]/data/table[@schema="time-profile"]'], stdout=f, check=True)
+
+ids, samples = {}, []
+def resolve(e):
+    return ids[e.get("ref")] if e.get("ref") else e
+for _, row in ET.iterparse(xml):
+    if row.get("id"):
+        ids[row.get("id")] = row
+    if row.tag != "row":
+        continue
+    thread = resolve(row.find("thread")).get("fmt", "?")
+    weight = int(resolve(row.find("weight")).text) / 1e6
+    bt = row.find("tagged-backtrace")
+    frames = []
+    if bt is not None:
+        for fr in resolve(bt).findall("frame"):
+            fr = resolve(fr)
+            binary = fr.find("binary")
+            binary = resolve(binary) if binary is not None else None
+            frames.append((fr.get("name"), int(fr.get("addr"), 16), binary.get("name") if binary is not None else "?",
+                           binary.get("UUID") if binary is not None else None,
+                           int(binary.get("load-addr"), 16) if binary is not None else 0))
+    samples.append((re.sub(r" \(0x[0-9a-f]+\).*", "", thread), weight, frames))
+
+# the app's frames: symbolicate with the dSYM (same UUID only)
+uuid = subprocess.run(["dwarfdump", "--uuid", dsym], capture_output=True, text=True).stdout.split()
+app = {(a, load) for _, _, fs in samples for n, a, b, u, load in fs if b == "Morrowind" and n.startswith("0x")}
+names = {}
+if app:
+    trace_uuid = next(u for _, _, fs in samples for n, a, b, u, l in fs if b == "Morrowind")
+    if len(uuid) > 1 and uuid[1] == trace_uuid:
+        load = next(iter(app))[1]
+        addrs = sorted(a for a, _ in app)
+        out = subprocess.run(["xcrun", "atos", "-o", dsym, "-arch", "arm64", "-l", hex(load)] + [hex(a) for a in addrs],
+                             capture_output=True, text=True).stdout.splitlines()
+        names = {a: re.sub(r" \(in Morrowind\)| \(.*\.\w+:\d+\)$|\(.*", "", n).strip() for a, n in zip(addrs, out)}
+    else:
+        print("trace: dSYM UUID differs from the traced binary, app frames unsymbolicated")
+def name(frame):
+    n, a, b, _, _ = frame
+    return names.get(a, n) if b == "Morrowind" else n
+
+def component(frame):
+    n, b = name(frame), frame[2]
+    if b != "Morrowind":
+        return "Metal driver" if re.match(r"AGX|IOGPU|Metal|IOKit", b) else "system (" + b + ")"
+    for pattern, comp in ((r"^(zink|nir|spirv|vk_|tc_|_tc|st_|_mesa|util_|u_|glsl|blitter|pipe|ralloc)", "Mesa/zink"),
+                          (r"MVK|mvk|SPIRV|spirv_cross|MoltenVK", "MoltenVK"),
+                          (r"^(osg|OpenThreads)", "OSG"), (r"^(lua|lj_|LuaUtil)", "Lua"),
+                          (r"^(bt|btDbvt)", "Bullet"), (r"^(MyGUI)", "MyGUI"), (r"^(SDL|UIKit_)", "SDL"),
+                          (r"^(MW|OMW|Resource::|SceneUtil|NifOsg|Shader::|Terrain|ESM|Misc::|DetourNavigator|Debug)", "OpenMW")):
+        if re.search(pattern, n):
+            return comp
+    return "other app code"
+
+total = sum(w for _, w, _ in samples)
+print(f"trace: {len(samples)} samples, {total / 1000:.1f} s CPU (Time Profiler, running threads)")
+by_thread = collections.Counter()
+for t, w, _ in samples:
+    by_thread[t] += w
+for t, w in by_thread.most_common(8):
+    leaf = collections.Counter()
+    comps = collections.Counter()
+    incl = collections.Counter()
+    for t2, w2, fs in samples:
+        if t2 != t or not fs:
+            continue
+        leaf[name(fs[0])] += w2
+        comps[component(fs[0])] += w2
+        for n in {name(f) for f in fs}:
+            incl[n] += w2
+    print(f"  thread {t}: {w / 1000:.1f} s ({100 * w / total:.0f}%)")
+    print("    components: " + ", ".join(f"{c} {100 * x / w:.0f}%" for c, x in comps.most_common(6)))
+    print("    self: " + "; ".join(f"{n[:60]} {100 * x / w:.1f}%" for n, x in leaf.most_common(8)))
+    print("    inclusive: " + "; ".join(f"{n[:50]} {100 * x / w:.0f}%" for n, x in incl.most_common(16)
+                                     if not re.match(r"^(start|_pthread|thread_start|0x)", n))[:900])
+EOF
 }
 
 run_perf() {
@@ -201,9 +287,14 @@ print(json.dumps(env))' "$container/$STATS_FILE" "$STATS" "${ENVS[@]+"${ENVS[@]}
     if grep -q "Failed to open file to write OSG stats" "$out/console.log"; then
         echo "warning: OpenMW could not write the stats file (log/perf-$LABEL/console.log)" >&2
     else
-        xcrun devicectl device copy from --quiet --device "$TARGET" --domain-type appDataContainer \
-            --domain-identifier "$BUNDLE_ID" --source "$STATS_FILE" --destination "$out/stats.txt" > /dev/null 2>&1 \
-            || echo "warning: no stats file ($STATS_FILE) on the device" >&2
+        # the copy right after the app has ended fails now and then
+        local tries=0
+        until xcrun devicectl device copy from --quiet --device "$TARGET" --domain-type appDataContainer \
+            --domain-identifier "$BUNDLE_ID" --source "$STATS_FILE" --destination "$out/stats.txt" > /dev/null 2>&1; do
+            tries=$((tries + 1))
+            [ $tries -lt 3 ] || { rm -f "$out/stats.txt"; echo "warning: no stats file ($STATS_FILE) on the device" >&2; break; }
+            sleep 2
+        done
     fi
     if [ -d "$out/trace.trace" ]; then
         xcrun xctrace symbolicate --input "$out/trace.trace" --dsym "$APP.dSYM" >> "$out/xctrace.log" 2>&1 \
