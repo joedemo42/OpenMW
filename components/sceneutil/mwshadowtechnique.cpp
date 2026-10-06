@@ -2090,6 +2090,8 @@ bool MWShadowTechnique::computeShadowCameraSettings(Frustum& frustum, LightData&
     return true;
 }
 
+namespace {
+
 struct ConvexHull
 {
     typedef std::vector<osg::Vec3d> Vertices;
@@ -2676,6 +2678,8 @@ struct RenderLeafBounds
     double min_y, max_y;
     double min_z, max_z;
 };
+
+} // namespace
 
 bool MWShadowTechnique::cropShadowCameraToMainFrustum(Frustum& frustum, osg::Camera* camera, double viewNear, double viewFar, std::vector<osg::Plane>& planeList)
 {
