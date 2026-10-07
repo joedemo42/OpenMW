@@ -17,6 +17,7 @@
 #include <os/proc.h>
 
 #include <cstdint>
+#include <cstdlib>
 #include <iterator>
 #include <string>
 
@@ -241,6 +242,11 @@ void OMW::initIosPlatform()
     {
         // a swipe from the bottom edge first shows the home indicator, the second one leaves the game
         SDL_SetHint(SDL_HINT_IOS_HIDE_HOME_INDICATOR, "2");
+
+        // Mesa's shader cache in Library/Caches (its default, $HOME/.cache, is the container root); before the engine
+        // creates the GL context. No overwrite: a launch environment can move or disable it
+        NSString* caches = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES).firstObject;
+        setenv("MESA_SHADER_CACHE_DIR", caches.fileSystemRepresentation, 0);
 
         // mixes with other apps' audio, muted by the silent switch
         NSError* error = nil;
