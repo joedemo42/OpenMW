@@ -20,7 +20,7 @@ Profiles the current release device build ('ios/build.sh build device --release'
       [--trace <template>] [--shots <interval>] [--env <NAME=value>]... [-- <app args>]
           measure the installed build after the warmup -> log/perf-<label>/ + summary. --stats: OPENMW_OSG_STATS_LIST,
           --trace: Instruments template, --shots: screenshot every <interval> s, --env: app environment variable
-          {container} in app args = the data container path. default: --seconds 60 --warmup 20 --stats frame_rate
+          {container} in app args/--env = the data container path. default: --seconds 60 --warmup 20 --stats frame_rate
   summary <dir>   frame times of the measured window, phases, memory + thermal log lines of a run dir
 EOF
 }
@@ -226,8 +226,9 @@ run_perf() {
     done
     stop_app $pid
     [ -n "$container" ] || die "no data container path in the app's log (log/perf-$LABEL/probe.log)"
-    # {container} in app args (e.g. --load-savegame {container}/Documents/Saves/...) = that path
+    # {container} in app args (e.g. --load-savegame {container}/Documents/Saves/...) and env values = that path
     for i in "${!APP_ARGS[@]}"; do APP_ARGS[i]=${APP_ARGS[i]//\{container\}/$container}; done
+    for i in "${!ENVS[@]}"; do ENVS[i]=${ENVS[i]//\{container\}/$container}; done
     env=$(python3 -c 'import json, sys
 env = dict(e.split("=", 1) for e in sys.argv[3:])
 env.update(OPENMW_OSG_STATS_FILE=sys.argv[1], OPENMW_OSG_STATS_LIST=sys.argv[2])
