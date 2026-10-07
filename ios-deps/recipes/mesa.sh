@@ -69,7 +69,7 @@ EOF
         -Dplatforms= -Dglx=disabled -Degl=enabled -Degl-native-platform=surfaceless
         -Dgallium-drivers=zink -Dvulkan-drivers= -Dmoltenvk-dir="$TARGET_DIR/moltenvk"
         -Dopengl=true -Dgles1=disabled -Dgles2=disabled -Dgbm=disabled -Dglvnd=disabled
-        -Dllvm=disabled -Dshader-cache=disabled -Dxmlconfig=disabled -Dzstd=disabled
+        -Dllvm=disabled -Dshader-cache=enabled -Dxmlconfig=disabled -Dzstd=disabled
         -Dlibunwind=disabled -Dvalgrind=disabled -Dbuild-tests=false -Dgallium-va=disabled
         -Dgallium-rusticl=false
     )

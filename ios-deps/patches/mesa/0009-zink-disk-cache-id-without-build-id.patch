@@ -1,0 +1,18 @@
+--- a/src/gallium/drivers/zink/zink_screen.c
++++ b/src/gallium/drivers/zink/zink_screen.c
+@@ -316,6 +316,15 @@
+    unsigned build_id_len = build_id_length(note);
+    assert(note && build_id_len == 20); /* blake3 */
+    _mesa_blake3_update(&ctx, build_id_data(note), build_id_len);
++#elif defined(HAVE_DLADDR)
++   /* No ELF build-id (e.g. Mach-O): hash in the timestamp of the binary containing zink instead, as
++    * disk_cache_get_function_identifier does, so another build never reads this build's NIR. No timestamp
++    * -> no disk cache.
++    */
++   uint32_t timestamp;
++   if (!disk_cache_get_function_timestamp(disk_cache_init, &timestamp))
++      return true;
++   _mesa_blake3_update(&ctx, &timestamp, sizeof(timestamp));
+ #endif
+ 
+    /* Hash in the Vulkan pipeline cache UUID to identify the combination of
