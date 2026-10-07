@@ -1,0 +1,26 @@
+--- a/src/gallium/drivers/zink/zink_screen.c
++++ b/src/gallium/drivers/zink/zink_screen.c
+@@ -921,7 +921,10 @@
+ 
+    caps->max_texture_array_layers = screen->info.props.limits.maxImageArrayLayers;
+ 
+-   caps->depth_clip_disable = screen->info.have_EXT_depth_clip_enable;
++   /* without VK_EXT_depth_clip_enable, core depthClampEnable also disables depth clipping: that is the only
++    * combination GL asks for (clip == !clamp, no separate near/far), see zink_create_gfx_pipeline
++    */
++   caps->depth_clip_disable = screen->info.have_EXT_depth_clip_enable || screen->info.feats.features.depthClamp;
+ 
+    caps->shader_stencil_export = screen->info.have_EXT_shader_stencil_export;
+ 
+--- a/src/gallium/drivers/zink/zink_pipeline.c
++++ b/src/gallium/drivers/zink/zink_pipeline.c
+@@ -175,7 +175,8 @@
+    if (screen->info.have_EXT_depth_clip_enable) {
+       depth_clip_state.pNext = rast_state.pNext;
+       rast_state.pNext = &depth_clip_state;
+-   } else {
++   } else if (hw_rast_state->depth_clip == hw_rast_state->depth_clamp) {
++      /* core Vulkan clips exactly when it does not clamp */
+       static bool warned = false;
+       warn_missing_feature(warned, "VK_EXT_depth_clip_enable");
+    }
