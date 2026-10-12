@@ -172,3 +172,17 @@ Video Settings
    .. warning::
 
       This setting is only supported on Windows platform. The setting will not be displayed in the in-game menu if not available.
+
+.. omw-setting::
+   :title: metal hud
+   :type: int
+   :range: 0, 1, 2
+   :default: 0
+   :location: :bdg-info:`In Game > Options > Video`
+
+   This setting shows Apple's Metal Performance HUD on iOS: 0 is off, 1 shows the standard HUD,
+   2 adds encoder timing, metric ranges and insights. It is applied at the next launch.
+
+   .. note::
+
+      This setting is only available on iOS. The setting will not be displayed in the in-game menu on other platforms.

@@ -295,80 +295,98 @@
                     <Property key="ButtonAutoWidth" value="true"/>
                     <Widget type="TabItem">
                         <Property key="Caption" value=" #{OMWEngine:Video} "/>
-                        <Widget type="ListBox" skin="MW_List" position="0 4 195 225" align="Left Top" name="ResolutionList"/>
-                        <Widget type="TextBox" skin="NormalText" position="207 4 250 18" align="Left Top">
-                            <Property key="Caption" value="#{OMWEngine:WindowMode}"/>
-                        </Widget>
-                        <Widget type="HBox" position="207 24 400 24">
-                            <Widget type="ComboBox" skin="MW_ComboBox" position="0 0 200 24" align="Left Top" name="WindowModeList">
-                                <Property key="AddItem" value="#{OMWEngine:WindowModeFullscreen}"/>
-                                <Property key="AddItem" value="#{OMWEngine:WindowModeWindowedFullscreen}"/>
-                                <Property key="AddItem" value="#{OMWEngine:WindowModeWindowed}"/>
+                        <!-- window and display controls, hidden on iOS (one full-screen window, presentation always display-synced) -->
+                        <Widget type="Widget" position="0 0 352 248" align="HStretch Top" name="WindowSettings">
+                            <Widget type="ListBox" skin="MW_List" position="0 4 195 225" align="Left Top" name="ResolutionList"/>
+                            <Widget type="TextBox" skin="NormalText" position="207 4 250 18" align="Left Top">
+                                <Property key="Caption" value="#{OMWEngine:WindowMode}"/>
+                            </Widget>
+                            <Widget type="HBox" position="207 24 400 24">
+                                <Widget type="ComboBox" skin="MW_ComboBox" position="0 0 200 24" align="Left Top" name="WindowModeList">
+                                    <Property key="AddItem" value="#{OMWEngine:WindowModeFullscreen}"/>
+                                    <Property key="AddItem" value="#{OMWEngine:WindowModeWindowedFullscreen}"/>
+                                    <Property key="AddItem" value="#{OMWEngine:WindowModeWindowed}"/>
+                                </Widget>
+                            </Widget>
+                            <Widget type="TextBox" skin="NormalText" position="207 54 250 18" align="Left Top">
+                                <Property key="Caption" value="#{OMWEngine:VSync}"/>
+                            </Widget>
+                            <Widget type="HBox" position="207 74 400 28">
+                                <Widget type="ComboBox" skin="MW_ComboBox" position="0 0 200 24" align="Left Top" name="VSyncModeList">
+                                    <Property key="AddItem" value="#{Interface:Off}"/>
+                                    <Property key="AddItem" value="#{Interface:On}"/>
+                                    <Property key="AddItem" value="#{OMWEngine:VSyncAdaptive}"/>
+                                </Widget>
+                            </Widget>
+                            <Widget type="HBox" position="207 108 300 28">
+                                <Widget type="AutoSizedButton" skin="MW_Button" position="0 0 24 24" align="Left Top" name="WindowBorderButton">
+                                    <UserString key="SettingCategory" value="Video"/>
+                                    <UserString key="SettingName" value="window border"/>
+                                    <UserString key="SettingType" value="CheckButton"/>
+                                </Widget>
+                                <Widget type="AutoSizedTextBox" skin="SandText" position="28 4 48 16" align="Left Top">
+                                    <Property key="Caption" value="#{OMWEngine:WindowBorder}"/>
+                                </Widget>
+                            </Widget>
+                            <Widget type="AutoSizedTextBox" skin="SandText" position="207 216 300 32" align="Left Top" name="WindowModeHint">
+                                <Property key="Caption" value="#{OMWEngine:WindowModeHint}"/>
                             </Widget>
                         </Widget>
-                        <Widget type="TextBox" skin="NormalText" position="207 54 250 18" align="Left Top">
-                            <Property key="Caption" value="#{OMWEngine:VSync}"/>
-                        </Widget>
-                        <Widget type="HBox" position="207 74 400 28">
-                            <Widget type="ComboBox" skin="MW_ComboBox" position="0 0 200 24" align="Left Top" name="VSyncModeList">
+                        <!-- shown on iOS only -->
+                        <Widget type="Widget" position="0 78 195 48" align="Left Top" name="IosVideoSettings">
+                            <Property key="Visible" value="false"/>
+                            <Widget type="TextBox" skin="NormalText" position="0 0 195 18" align="Left Top">
+                                <Property key="Caption" value="#{OMWEngine:MetalHUD}"/>
+                            </Widget>
+                            <Widget type="ComboBox" skin="MW_ComboBox" position="0 20 195 24" align="Left Top" name="MetalHudList">
                                 <Property key="AddItem" value="#{Interface:Off}"/>
-                                <Property key="AddItem" value="#{Interface:On}"/>
-                                <Property key="AddItem" value="#{OMWEngine:VSyncAdaptive}"/>
+                                <Property key="AddItem" value="#{OMWEngine:MetalHUDStandard}"/>
+                                <Property key="AddItem" value="#{OMWEngine:MetalHUDDetailed}"/>
                             </Widget>
                         </Widget>
-                        <Widget type="HBox" position="207 108 300 28">
-                            <Widget type="AutoSizedButton" skin="MW_Button" position="0 0 24 24" align="Left Top" name="WindowBorderButton">
-                                <UserString key="SettingCategory" value="Video"/>
-                                <UserString key="SettingName" value="window border"/>
-                                <UserString key="SettingType" value="CheckButton"/>
+                        <Widget type="Widget" position="207 142 300 72" align="Left Top" name="GeneralVideoSettings">
+                            <Widget type="HBox" position="0 0 300 28">
+                                <Widget type="AutoSizedButton" skin="MW_Button" position="0 0 24 24" align="Left Top" name="WindowBorderButton">
+                                    <UserString key="SettingCategory" value="Post Processing"/>
+                                    <UserString key="SettingName" value="enabled"/>
+                                    <UserString key="SettingType" value="CheckButton"/>
+                                </Widget>
+                                <Widget type="AutoSizedTextBox" skin="SandText" position="28 4 48 16" align="Left Top">
+                                    <Property key="Caption" value="#{OMWEngine:PostProcessing}"/>
+                                    <UserString key="ToolTipType" value="Layout"/>
+                                    <UserString key="ToolTipLayout" value="TextToolTip"/>
+                                    <UserString key="Caption_Text" value="#{OMWEngine:PostProcessingTooltip}"/>
+                                </Widget>
                             </Widget>
-                            <Widget type="AutoSizedTextBox" skin="SandText" position="28 4 48 16" align="Left Top">
-                                <Property key="Caption" value="#{OMWEngine:WindowBorder}"/>
-                            </Widget>
-                        </Widget>
-                        <Widget type="HBox" position="207 142 300 28">
-                            <Widget type="AutoSizedButton" skin="MW_Button" position="0 0 24 24" align="Left Top" name="WindowBorderButton">
-                                <UserString key="SettingCategory" value="Post Processing"/>
-                                <UserString key="SettingName" value="enabled"/>
-                                <UserString key="SettingType" value="CheckButton"/>
-                            </Widget>
-                            <Widget type="AutoSizedTextBox" skin="SandText" position="28 4 48 16" align="Left Top">
-                                <Property key="Caption" value="#{OMWEngine:PostProcessing}"/>
-                                <UserString key="ToolTipType" value="Layout"/>
-                                <UserString key="ToolTipLayout" value="TextToolTip"/>
-                                <UserString key="Caption_Text" value="#{OMWEngine:PostProcessingTooltip}"/>
+                            <Widget type="AutoSizedTextBox" skin="SandText" position="0 32 300 32" align="Left Top">
+                                <Property key="Caption" value="#{OMWEngine:FrameRateHint}"/>
                             </Widget>
                         </Widget>
 
-                        <Widget type="AutoSizedTextBox" skin="SandText" position="207 174 300 32" align="Left Top">
-                            <Property key="Caption" value="#{OMWEngine:FrameRateHint}"/>
-                        </Widget>
-                        <Widget type="AutoSizedTextBox" skin="SandText" position="207 216 300 32" align="Left Top" name="WindowModeHint">
-                            <Property key="Caption" value="#{OMWEngine:WindowModeHint}"/>
-                        </Widget>
-
-                        <Widget type="TextBox" skin="NormalText" position="0 238 352 18" align="Left Top" name="FovText">
-                        </Widget>
-                        <Widget type="ScrollBar" skin="MW_HScroll" position="0 262 352 18" align="HStretch Top">
-                            <Property key="Range" value="81"/>
-                            <Property key="Page" value="1"/>
-                            <Property key="WheelPage" value="1"/>
-                            <UserString key="SettingType" value="Slider"/>
-                            <UserString key="SettingCategory" value="Camera"/>
-                            <UserString key="SettingName" value="field of view"/>
-                            <UserString key="SettingValueType" value="Float"/>
-                            <UserString key="SettingMin" value="30"/>
-                            <UserString key="SettingMax" value="110"/>
-                            <UserString key="SettingLabelWidget" value="FovText"/>
-                            <UserString key="SettingLabelCaption" value="FieldOfViewValue"/>
-                        </Widget>
-                        <Widget type="TextBox" skin="SandText" position="0 286 352 18" align="Left Top">
-                            <Property key="Caption" value="#{OMWEngine:FieldOfViewLow}"/>
-                            <Property key="TextAlign" value="Left"/>
-                        </Widget>
-                        <Widget type="TextBox" skin="SandText" position="0 286 352 18" align="Right Top">
-                            <Property key="Caption" value="#{OMWEngine:FieldOfViewHigh}"/>
-                            <Property key="TextAlign" value="Right"/>
+                        <Widget type="Widget" position="0 238 352 66" align="HStretch Top" name="FieldOfViewSettings">
+                            <Widget type="TextBox" skin="NormalText" position="0 0 352 18" align="Left Top" name="FovText">
+                            </Widget>
+                            <Widget type="ScrollBar" skin="MW_HScroll" position="0 24 352 18" align="HStretch Top">
+                                <Property key="Range" value="81"/>
+                                <Property key="Page" value="1"/>
+                                <Property key="WheelPage" value="1"/>
+                                <UserString key="SettingType" value="Slider"/>
+                                <UserString key="SettingCategory" value="Camera"/>
+                                <UserString key="SettingName" value="field of view"/>
+                                <UserString key="SettingValueType" value="Float"/>
+                                <UserString key="SettingMin" value="30"/>
+                                <UserString key="SettingMax" value="110"/>
+                                <UserString key="SettingLabelWidget" value="FovText"/>
+                                <UserString key="SettingLabelCaption" value="FieldOfViewValue"/>
+                            </Widget>
+                            <Widget type="TextBox" skin="SandText" position="0 48 352 18" align="Left Top">
+                                <Property key="Caption" value="#{OMWEngine:FieldOfViewLow}"/>
+                                <Property key="TextAlign" value="Left"/>
+                            </Widget>
+                            <Widget type="TextBox" skin="SandText" position="0 48 352 18" align="Right Top">
+                                <Property key="Caption" value="#{OMWEngine:FieldOfViewHigh}"/>
+                                <Property key="TextAlign" value="Right"/>
+                            </Widget>
                         </Widget>
                         <Widget type="TextBox" skin="NormalText" position="0 308 352 18" align="Left Top" name="GammaText">
                         </Widget>

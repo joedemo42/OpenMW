@@ -1,6 +1,7 @@
 #include "platform.hpp"
 
 #include <components/debug/debuglog.hpp>
+#include <components/settings/values.hpp>
 
 #include "../mwgui/windowmanagerimp.hpp"
 
@@ -292,4 +293,20 @@ void OMW::initIosPlatform()
                                  queue:NSOperationQueue.mainQueue
                             usingBlock:^(NSNotification* notification) { updateInputDevices(notification.name); }];
     }
+}
+
+void OMW::configureMetalHud()
+{
+    // Off sets nothing; no overwrite: a launch environment can switch the HUD on or off
+    const int mode = Settings::video().mMetalHud;
+    if (mode == 0)
+        return;
+    const char* detailed = mode == 2 ? "1" : "0";
+    setenv("MTL_HUD_ENABLED", "1", 0);
+    setenv("MTL_HUD_ENCODER_TIMING_ENABLED", detailed, 0);
+    setenv("MTL_HUD_SHOW_METRICS_RANGE", detailed, 0);
+    setenv("MTL_HUD_INSIGHTS_ENABLED", detailed, 0);
+    setenv("MTL_HUD_LOG_ENABLED", "0", 0);
+    setenv("MTL_HUD_LOG_SHADER_ENABLED", "0", 0);
+    Log(Debug::Info) << "Metal Performance HUD: " << (mode == 2 ? "detailed" : "standard");
 }

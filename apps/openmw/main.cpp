@@ -240,6 +240,9 @@ int runApplication(int argc, char* argv[])
 
     if (parseOptions(argc, argv, *engine, cfgMgr))
     {
+#if defined(__APPLE__) && TARGET_OS_IPHONE
+        OMW::configureMetalHud();
+#endif
         if (!Misc::checkRequiredOSGPluginsArePresent())
             return 1;
 

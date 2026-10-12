@@ -30,6 +30,10 @@
 #include <components/vfs/recursivedirectoryiterator.hpp>
 #include <components/widgets/sharedstatebutton.hpp>
 
+#ifdef __APPLE__
+#include <TargetConditionals.h>
+#endif
+
 #include "../mwbase/environment.hpp"
 #include "../mwbase/inputmanager.hpp"
 #include "../mwbase/mechanicsmanager.hpp"
@@ -281,6 +285,7 @@ namespace MWGui
         getWidget(mResolutionList, "ResolutionList");
         getWidget(mWindowModeList, "WindowModeList");
         getWidget(mVSyncModeList, "VSyncModeList");
+        getWidget(mMetalHudList, "MetalHudList");
         getWidget(mWindowBorderButton, "WindowBorderButton");
         getWidget(mTextureFilteringButton, "TextureFilteringButton");
         getWidget(mAnisotropy, "Anisotropy");
@@ -328,6 +333,20 @@ namespace MWGui
         textBox->setVisible(false);
 #endif
 
+#if defined(__APPLE__) && TARGET_OS_IPHONE
+        // window and display controls have no effect on iOS (one full-screen window, presentation always synced to
+        // the display): field of view on top, below it the iOS video settings and next to them post-processing
+        MyGUI::Widget* videoSettings;
+        getWidget(videoSettings, "WindowSettings");
+        videoSettings->setVisible(false);
+        getWidget(videoSettings, "IosVideoSettings");
+        videoSettings->setVisible(true);
+        getWidget(videoSettings, "FieldOfViewSettings");
+        videoSettings->setPosition(0, 4);
+        getWidget(videoSettings, "GeneralVideoSettings");
+        videoSettings->setPosition(207, 98);
+#endif
+
         mMainWidget->castType<MyGUI::Window>()->eventWindowChangeCoord
             += MyGUI::newDelegate(this, &SettingsWindow::onWindowResize);
 
@@ -361,6 +380,8 @@ namespace MWGui
 
         mWindowModeList->eventComboChangePosition += MyGUI::newDelegate(this, &SettingsWindow::onWindowModeChanged);
         mVSyncModeList->eventComboChangePosition += MyGUI::newDelegate(this, &SettingsWindow::onVSyncModeChanged);
+        mMetalHudList->setIndexSelected(static_cast<size_t>(Settings::video().mMetalHud));
+        mMetalHudList->eventComboChangePosition += MyGUI::newDelegate(this, &SettingsWindow::onMetalHudChanged);
 
         mKeyboardSwitch->eventMouseButtonClick += MyGUI::newDelegate(this, &SettingsWindow::onKeyboardSwitchClicked);
         mControllerSwitch->eventMouseButtonClick
@@ -611,6 +632,17 @@ namespace MWGui
 
         Settings::video().mVsyncMode.set(static_cast<SDLUtil::VSyncMode>(sender->getIndexSelected()));
         apply();
+    }
+
+    void SettingsWindow::onMetalHudChanged(MyGUI::ComboBox* /*sender*/, size_t pos)
+    {
+        if (pos == MyGUI::ITEM_NONE)
+            return;
+
+        // Metal reads its HUD configuration when it creates the device, at launch
+        Settings::video().mMetalHud.set(static_cast<int>(pos));
+        MWBase::Environment::get().getWindowManager()->interactiveMessageBox(
+            "#{OMWEngine:ChangeRequiresRestart}", { "#{Interface:OK}" }, true);
     }
 
     void SettingsWindow::onWindowModeChanged(MyGUI::ComboBox* sender, size_t pos)
