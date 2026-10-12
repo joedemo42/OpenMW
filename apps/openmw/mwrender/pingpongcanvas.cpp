@@ -172,11 +172,8 @@ namespace MWRender
 
             mLuminanceCalculator->dirty(mTextureScene->getTextureWidth(), mTextureScene->getTextureHeight());
 
-            if (Stereo::getStereo())
-                mRenderViewport
-                    = new osg::Viewport(0, 0, mTextureScene->getTextureWidth(), mTextureScene->getTextureHeight());
-            else
-                mRenderViewport = nullptr;
+            mRenderViewport
+                = new osg::Viewport(0, 0, mTextureScene->getTextureWidth(), mTextureScene->getTextureHeight());
 
             mDirty = false;
         }

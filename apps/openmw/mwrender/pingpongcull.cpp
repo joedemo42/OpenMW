@@ -15,15 +15,12 @@ namespace MWRender
 {
 
     PingPongCull::PingPongCull(PostProcessor* pp)
-        : mViewportStateset(nullptr)
+        : mViewportStateset(new osg::StateSet)
+        , mViewport(new osg::Viewport)
         , mPostProcessor(pp)
     {
-        if (Stereo::getStereo())
-        {
-            mViewportStateset = new osg::StateSet();
-            mViewport = new osg::Viewport;
-            mViewportStateset->setAttribute(mViewport);
-        }
+        // the scene renders at the render size (stereo eye resolution or render scale), not the window's
+        mViewportStateset->setAttribute(mViewport);
     }
 
     PingPongCull::~PingPongCull()
@@ -69,15 +66,10 @@ namespace MWRender
                 Stereo::setMultiviewMSAAResolveCallback(renderStage);
         }
 
-        if (mViewportStateset)
-        {
-            mViewport->setViewport(0, 0, mPostProcessor->renderWidth(), mPostProcessor->renderHeight());
-            renderStage->setViewport(mViewport);
-            cv->pushStateSet(mViewportStateset.get());
-            traverse(node, cv);
-            cv->popStateSet();
-        }
-        else
-            traverse(node, cv);
+        mViewport->setViewport(0, 0, mPostProcessor->renderWidth(), mPostProcessor->renderHeight());
+        renderStage->setViewport(mViewport);
+        cv->pushStateSet(mViewportStateset.get());
+        traverse(node, cv);
+        cv->popStateSet();
     }
 }

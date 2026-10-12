@@ -3,6 +3,7 @@
 #include <SDL_opengl_glext.h>
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <thread>
 
 #include <osg/Texture1D>
@@ -335,8 +336,13 @@ namespace MWRender
 
         size_t frame = cv->getTraversalNumber();
 
-        mStateUpdater->setResolution(osg::Vec2f(
-            static_cast<float>(cv->getViewport()->width()), static_cast<float>(cv->getViewport()->height())));
+        // outside stereo the camera's viewport is the window's, the scene renders at the render size (PingPongCull)
+        if (Stereo::getStereo())
+            mStateUpdater->setResolution(osg::Vec2f(
+                static_cast<float>(cv->getViewport()->width()), static_cast<float>(cv->getViewport()->height())));
+        else
+            mStateUpdater->setResolution(
+                osg::Vec2f(static_cast<float>(renderWidth()), static_cast<float>(renderHeight())));
 
         // per-frame data
         if (frame != mLastFrameNumber)
@@ -888,14 +894,14 @@ namespace MWRender
     {
         if (Stereo::getStereo())
             return Stereo::Manager::instance().eyeResolution().x();
-        return mWidth;
+        return std::max(1, static_cast<int>(std::lround(mWidth * Settings::video().mRenderScale)));
     }
 
     int PostProcessor::renderHeight() const
     {
         if (Stereo::getStereo())
             return Stereo::Manager::instance().eyeResolution().y();
-        return mHeight;
+        return std::max(1, static_cast<int>(std::lround(mHeight * Settings::video().mRenderScale)));
     }
 
     void PostProcessor::triggerShaderReload()

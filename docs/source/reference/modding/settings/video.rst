@@ -174,6 +174,20 @@ Video Settings
       This setting is only supported on Windows platform. The setting will not be displayed in the in-game menu if not available.
 
 .. omw-setting::
+   :title: render scale
+   :type: float32
+   :range: 0.5 to 1.0
+   :default: 1.0
+   :location: :bdg-info:`In Game > Options > Video`
+
+   This setting renders the 3D world at this fraction of the window size and scales it up to the window size;
+   the user interface keeps the full resolution. Lower values reduce the GPU load at the cost of a softer image.
+
+   .. note::
+
+      The in-game menu shows this setting only on iOS.
+
+.. omw-setting::
    :title: metal hud
    :type: int
    :range: 0, 1, 2

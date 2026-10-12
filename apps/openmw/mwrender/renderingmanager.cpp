@@ -1251,7 +1251,7 @@ namespace MWRender
         }
         else
         {
-            setScreenRes(width, height);
+            setScreenRes(mPostProcessor->renderWidth(), mPostProcessor->renderHeight());
         }
 
         // Since our fog is not radial yet, we should take FOV in account, otherwise terrain near viewing distance may
@@ -1376,6 +1376,10 @@ namespace MWRender
             else if (it->first == "Video" && (it->second == "resolution x" || it->second == "resolution y"))
             {
                 updateProjection = true;
+            }
+            else if (it->first == "Video" && it->second == "render scale")
+            {
+                mPostProcessor->resize();
             }
             else if (it->first == "Camera" && it->second == "viewing distance")
             {
