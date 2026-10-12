@@ -333,7 +333,7 @@
                             </Widget>
                         </Widget>
                         <!-- shown on iOS only -->
-                        <Widget type="Widget" position="0 78 195 48" align="Left Top" name="IosVideoSettings">
+                        <Widget type="Widget" position="0 78 195 94" align="Left Top" name="IosVideoSettings">
                             <Property key="Visible" value="false"/>
                             <Widget type="TextBox" skin="NormalText" position="0 0 195 18" align="Left Top">
                                 <Property key="Caption" value="#{OMWEngine:MetalHUD}"/>
@@ -342,6 +342,21 @@
                                 <Property key="AddItem" value="#{Interface:Off}"/>
                                 <Property key="AddItem" value="#{OMWEngine:MetalHUDStandard}"/>
                                 <Property key="AddItem" value="#{OMWEngine:MetalHUDDetailed}"/>
+                            </Widget>
+                            <Widget type="TextBox" skin="NormalText" position="0 54 195 18" align="Left Top" name="RenderScaleText">
+                            </Widget>
+                            <Widget type="ScrollBar" skin="MW_HScroll" position="0 76 195 18" align="Left Top">
+                                <Property key="Range" value="11"/>
+                                <Property key="Page" value="1"/>
+                                <Property key="WheelPage" value="1"/>
+                                <UserString key="SettingType" value="Slider"/>
+                                <UserString key="SettingCategory" value="Video"/>
+                                <UserString key="SettingName" value="render scale"/>
+                                <UserString key="SettingValueType" value="Float"/>
+                                <UserString key="SettingMin" value="0.5"/>
+                                <UserString key="SettingMax" value="1"/>
+                                <UserString key="SettingLabelWidget" value="RenderScaleText"/>
+                                <UserString key="SettingLabelCaption" value="RenderScaleValue"/>
                             </Widget>
                         </Widget>
                         <Widget type="Widget" position="207 142 300 72" align="Left Top" name="GeneralVideoSettings">
