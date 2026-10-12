@@ -1,0 +1,142 @@
+--- a/include/GL/mesa_glinterop.h
++++ b/include/GL/mesa_glinterop.h
+@@ -443,6 +443,26 @@
+                                                    unsigned count, struct mesa_glinterop_export_in *resources,
+                                                    struct mesa_glinterop_flush_out *out);
+ 
++/**
++ * Driver data of the export functions (out_driver_data) for zink on Metal (MoltenVK): the Metal objects behind
++ * the exported texture. Not retained: valid while the GL object exists and keeps its storage.
++ */
++struct mesa_glinterop_metal_objects {
++   uint32_t version;        /* 1 */
++   void *mtl_device;        /* id<MTLDevice> */
++   void *mtl_command_queue; /* id<MTLCommandQueue> the driver submits to */
++   void *mtl_texture;       /* id<MTLTexture> */
++};
++
++/**
++ * Calls fn(data) once the GL commands issued so far in the current context are submitted to the driver's queue
++ * (MoltenVK: committed to its MTLCommandQueue), before any later GL command is. Work committed to that queue in
++ * fn therefore executes in GL command order. Flushes asynchronously, does not wait for the GPU; fn may run on
++ * another thread.
++ */
++void
++MesaGLInteropRunAfterFlush(void (*fn)(void *data), void *data);
++
+ #ifdef __cplusplus
+ }
+ #endif
+--- a/src/gallium/drivers/zink/zink_device_info.py
++++ b/src/gallium/drivers/zink/zink_device_info.py
+@@ -254,6 +254,7 @@
+               alias="portability_subset",
+               features=True,
+               guard=True),
++    Extension("VK_EXT_metal_objects", guard=True),
+     Extension("VK_NV_compute_shader_derivatives",
+               alias="shader_derivs",
+               features=True,
+--- a/src/gallium/drivers/zink/zink_resource.c
++++ b/src/gallium/drivers/zink/zink_resource.c
+@@ -46,6 +46,7 @@
+ #include "util/u_upload_mgr.h"
+ #include "util/os_file.h"
+ #include "frontend/winsys_handle.h"
++#include "GL/mesa_glinterop.h"
+ 
+ #if !defined(__APPLE__)
+ #define ZINK_USE_DMABUF
+@@ -3233,6 +3234,49 @@
+    .get_stencil           = zink_resource_get_separate_stencil,
+ };
+ 
++#ifdef VK_EXT_metal_objects
++/* GL interop on Metal: the Metal objects behind a texture (struct mesa_glinterop_metal_objects), for Metal work on
++ * the queue zink submits to; there is no dmabuf to export
++ */
++static uint32_t
++zink_interop_export_object(struct pipe_screen *pscreen, struct pipe_resource *pres, uint32_t in_data_size,
++                           void *data, bool *need_export_dmabuf)
++{
++   struct zink_screen *screen = zink_screen(pscreen);
++   struct mesa_glinterop_metal_objects *out = data;
++
++   *need_export_dmabuf = false;
++   if (in_data_size < sizeof(*out) || pres->target == PIPE_BUFFER)
++      return 0;
++
++   VkExportMetalTextureInfoEXT texture = {
++      .sType = VK_STRUCTURE_TYPE_EXPORT_METAL_TEXTURE_INFO_EXT,
++      .image = zink_resource(pres)->obj->image,
++      .plane = VK_IMAGE_ASPECT_PLANE_0_BIT,
++   };
++   VkExportMetalCommandQueueInfoEXT queue = {
++      .sType = VK_STRUCTURE_TYPE_EXPORT_METAL_COMMAND_QUEUE_INFO_EXT,
++      .pNext = &texture,
++      .queue = screen->queue,
++   };
++   VkExportMetalDeviceInfoEXT device = {
++      .sType = VK_STRUCTURE_TYPE_EXPORT_METAL_DEVICE_INFO_EXT,
++      .pNext = &queue,
++   };
++   VkExportMetalObjectsInfoEXT info = {
++      .sType = VK_STRUCTURE_TYPE_EXPORT_METAL_OBJECTS_INFO_EXT,
++      .pNext = &device,
++   };
++   VKSCR(ExportMetalObjectsEXT)(screen->dev, &info);
++
++   out->version = 1;
++   out->mtl_device = (void *)device.mtlDevice;
++   out->mtl_command_queue = (void *)queue.mtlCommandQueue;
++   out->mtl_texture = (void *)texture.mtlTexture;
++   return sizeof(*out);
++}
++#endif
++
+ bool
+ zink_screen_resource_init(struct pipe_screen *pscreen)
+ {
+@@ -3260,6 +3304,10 @@
+       pscreen->resource_from_memobj = zink_resource_from_memobj;
+    }
+    pscreen->resource_get_param = zink_resource_get_param;
++#ifdef VK_EXT_metal_objects
++   if (screen->info.have_EXT_metal_objects)
++      pscreen->interop_export_object = zink_interop_export_object;
++#endif
+    return true;
+ }
+ 
+--- a/src/mesa/state_tracker/st_interop.c
++++ b/src/mesa/state_tracker/st_interop.c
+@@ -24,6 +24,7 @@
+  */
+ 
+ #include "st_interop.h"
++#include "main/context.h"
+ #include "st_cb_texture.h"
+ #include "st_cb_flush.h"
+ #include "st_texture.h"
+@@ -446,4 +447,21 @@
+    }
+ 
+    return MESA_GLINTEROP_SUCCESS;
++}
++
++void
++MesaGLInteropRunAfterFlush(void (*fn)(void *data), void *data)
++{
++   GET_CURRENT_CONTEXT(ctx);
++   struct pipe_context *pipe = ctx->st->pipe;
++
++   _mesa_glthread_finish(ctx);
++   st_flush(ctx->st, NULL, PIPE_FLUSH_ASYNC);
++   /* the threaded context runs the callback on its driver thread after the flush above, whose submit returned
++    * by then; without it the flush was synchronous
++    */
++   if (pipe->callback)
++      pipe->callback(pipe, fn, data, false);
++   else
++      fn(data);
+ }

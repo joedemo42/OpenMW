@@ -88,6 +88,8 @@ EOF
     PATH="$path" ninja -C "$build"
     PATH="$path" ninja -C "$build" "$bridge"
     PATH="$path" meson install -C "$build" --no-rebuild --quiet
+    # not installed by Mesa: the app uses its Metal export and ordered callback (patch 0010)
+    cp "$BUILD_DIR/mesa/src/include/GL/mesa_glinterop.h" "$TARGET_DIR/install/include/GL/"
 
     # static library from the link inputs of the shared libraries
     local dylib inputs=()
