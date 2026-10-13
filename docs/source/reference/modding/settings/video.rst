@@ -200,3 +200,17 @@ Video Settings
    .. note::
 
       This setting is only available on iOS. The setting will not be displayed in the in-game menu on other platforms.
+
+.. omw-setting::
+   :title: metalfx
+   :type: boolean
+   :range: true, false
+   :default: true
+   :location: :bdg-info:`In Game > Options > Video`
+
+   With a render scale below 1.0 Apple's MetalFX scales the 3D world up to the window size instead of a bilinear
+   stretch, which keeps edges and details sharper.
+
+   .. note::
+
+      This setting is only available on iOS. The setting will not be displayed in the in-game menu on other platforms.

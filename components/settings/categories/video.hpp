@@ -33,6 +33,7 @@ namespace Settings
         SettingValue<float> mGamma{ mIndex, "Video", "gamma", makeMaxStrictSanitizerFloat(0) };
         SettingValue<float> mRenderScale{ mIndex, "Video", "render scale", makeClampSanitizerFloat(0.5f, 1.0f) };
         SettingValue<int> mMetalHud{ mIndex, "Video", "metal hud", makeClampSanitizerInt(0, 2) };
+        SettingValue<bool> mMetalFx{ mIndex, "Video", "metalfx" };
     };
 }
 

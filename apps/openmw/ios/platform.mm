@@ -4,6 +4,8 @@
 #include <components/settings/values.hpp>
 
 #include "../mwgui/windowmanagerimp.hpp"
+#include "../mwrender/pingpongcanvas.hpp"
+#include "metalfx.hpp"
 
 #include <SDL_events.h>
 #include <SDL_hints.h>
@@ -248,6 +250,9 @@ void OMW::initIosPlatform()
         // creates the GL context. No overwrite: a launch environment can move or disable it
         NSString* caches = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES).firstObject;
         setenv("MESA_SHADER_CACHE_DIR", caches.fileSystemRepresentation, 0);
+
+        // render scale: MetalFX scales the 3D world up
+        MWRender::PingPongCanvas::setUpscaler(OMW::metalFxUpscale);
 
         // mixes with other apps' audio, muted by the silent switch
         NSError* error = nil;

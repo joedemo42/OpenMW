@@ -102,7 +102,9 @@ targets:
         # as OpenMW links on Apple (OSG plugins register themselves in static initializers). Release dead-strips
         # unreferenced objects and ignores their unresolved/duplicate symbols (FIXES #18)
         OTHER_LDFLAGS: ["$(inherited)", "-all_load", "-lopenmw", "-lopenmw-lib", "-lcomponents",
-                        "-losg-ffmpeg-videoplayer", "-loics", "-llocal_tinyxml", "-lsmhasher"]
+                        "-losg-ffmpeg-videoplayer", "-loics", "-llocal_tinyxml", "-lsmhasher", "$(METALFX_LDFLAGS)"]
+        # MetalFX upscaling (apps/openmw/ios/metalfx.mm); the simulator SDK has no MetalFX
+        "METALFX_LDFLAGS[sdk=iphoneos*]": ["-framework", "MetalFX"]
         # overridden by ios/build.sh
         MARKETING_VERSION: "0.0.0"
         CURRENT_PROJECT_VERSION: "0"

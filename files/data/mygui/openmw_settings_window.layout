@@ -333,7 +333,7 @@
                             </Widget>
                         </Widget>
                         <!-- shown on iOS only -->
-                        <Widget type="Widget" position="0 78 195 94" align="Left Top" name="IosVideoSettings">
+                        <Widget type="Widget" position="0 78 195 128" align="Left Top" name="IosVideoSettings">
                             <Property key="Visible" value="false"/>
                             <Widget type="TextBox" skin="NormalText" position="0 0 195 18" align="Left Top">
                                 <Property key="Caption" value="#{OMWEngine:MetalHUD}"/>
@@ -357,6 +357,16 @@
                                 <UserString key="SettingMax" value="1"/>
                                 <UserString key="SettingLabelWidget" value="RenderScaleText"/>
                                 <UserString key="SettingLabelCaption" value="RenderScaleValue"/>
+                            </Widget>
+                            <Widget type="HBox" position="0 100 195 28">
+                                <Widget type="AutoSizedButton" skin="MW_Button" position="0 0 24 24" align="Left Top">
+                                    <UserString key="SettingCategory" value="Video"/>
+                                    <UserString key="SettingName" value="metalfx"/>
+                                    <UserString key="SettingType" value="CheckButton"/>
+                                </Widget>
+                                <Widget type="AutoSizedTextBox" skin="SandText" position="28 4 48 16" align="Left Top">
+                                    <Property key="Caption" value="#{OMWEngine:MetalFXUpscaling}"/>
+                                </Widget>
                             </Widget>
                         </Widget>
                         <Widget type="Widget" position="207 142 300 72" align="Left Top" name="GeneralVideoSettings">
