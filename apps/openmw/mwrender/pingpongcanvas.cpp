@@ -90,6 +90,72 @@ namespace MWRender
         }
     }
 
+    static osg::ref_ptr<osg::Texture2D> createTexture(int width, int height, GLint internalFormat)
+    {
+        osg::ref_ptr<osg::Texture2D> texture = new osg::Texture2D;
+        texture->setTextureSize(width, height);
+        texture->setInternalFormat(internalFormat);
+        texture->setSourceFormat(internalFormat == GL_RGB8 ? GL_RGB : GL_RGBA);
+        texture->setSourceType(GL_UNSIGNED_BYTE);
+        texture->setFilter(osg::Texture::MIN_FILTER, osg::Texture::LINEAR);
+        texture->setFilter(osg::Texture::MAG_FILTER, osg::Texture::LINEAR);
+        texture->setWrap(osg::Texture::WRAP_S, osg::Texture::CLAMP_TO_EDGE);
+        texture->setWrap(osg::Texture::WRAP_T, osg::Texture::CLAMP_TO_EDGE);
+        texture->setResizeNonPowerOfTwoHint(false);
+        return texture;
+    }
+
+    static osg::ref_ptr<osg::FrameBufferObject> createFbo(osg::Texture* texture)
+    {
+        osg::ref_ptr<osg::FrameBufferObject> fbo = new osg::FrameBufferObject;
+        fbo->setAttachment(osg::Camera::COLOR_BUFFER0, Stereo::createMultiviewCompatibleAttachment(texture));
+        return fbo;
+    }
+
+    // The final image (render size) -> the destination framebuffer: the upscaler into an image of the destination
+    // size, then a plain blit. Copies and blits see the upscaler's GPU writes in order where the shader reads of a
+    // stretching pass may not (MetalFX on MoltenVK), so the image matches the destination's base format and a blit
+    // without swizzle stays a copy. Without an upscaler result a bilinear blit.
+    void PingPongCanvas::upscaleToDestination(osg::State& state, osg::GLExtensions* ext, osg::Texture* source,
+        osg::FrameBufferObject* sourceFbo, const osg::Viewport& destination) const
+    {
+        const unsigned int contextID = state.getContextID();
+        const int width = source->getTextureWidth();
+        const int height = source->getTextureHeight();
+        const int destinationWidth = static_cast<int>(destination.width());
+        const int destinationHeight = static_cast<int>(destination.height());
+
+        ext->glBindFramebuffer(GL_FRAMEBUFFER_EXT, 0);
+        if (!mUpscaled || mUpscaled->getTextureWidth() != destinationWidth
+            || mUpscaled->getTextureHeight() != destinationHeight)
+        {
+            GLint alphaBits = 0;
+            glGetIntegerv(GL_ALPHA_BITS, &alphaBits);
+            mUpscaled = createTexture(destinationWidth, destinationHeight, alphaBits ? GL_RGBA8 : GL_RGB8);
+            mUpscaledFbo = createFbo(mUpscaled);
+        }
+        state.applyTextureAttribute(0, mUpscaled);
+
+        osg::FrameBufferObject* blitSource = sourceFbo;
+        GLenum filter = GL_LINEAR;
+        if (sUpscaler(source->getTextureObject(contextID)->id(), width, height,
+                mUpscaled->getTextureObject(contextID)->id(), destinationWidth, destinationHeight))
+        {
+            blitSource = mUpscaledFbo;
+            filter = GL_NEAREST;
+        }
+
+        blitSource->apply(state, osg::FrameBufferObject::READ_FRAMEBUFFER);
+        ext->glBindFramebuffer(GL_DRAW_FRAMEBUFFER_EXT, 0);
+        const int sourceWidth = blitSource == sourceFbo ? width : destinationWidth;
+        const int sourceHeight = blitSource == sourceFbo ? height : destinationHeight;
+        const int x = static_cast<int>(destination.x());
+        const int y = static_cast<int>(destination.y());
+        ext->glBlitFramebuffer(0, 0, sourceWidth, sourceHeight, x, y, x + destinationWidth, y + destinationHeight,
+            GL_COLOR_BUFFER_BIT, filter);
+        ext->glBindFramebuffer(GL_FRAMEBUFFER_EXT, 0);
+    }
+
     void PingPongCanvas::drawImplementation(osg::RenderInfo& renderInfo) const
     {
         osg::State& state = *renderInfo.getState();
@@ -117,8 +183,27 @@ namespace MWRender
 
         auto* resolveViewport = state.getCurrentViewport();
 
+        // render scale: the platform upscaler instead of the stretching final pass
+        const bool upscale = sUpscaler && !Stereo::getStereo() && !mDestinationFBO
+            && (mTextureScene->getTextureWidth() != static_cast<int>(resolveViewport->width())
+                || mTextureScene->getTextureHeight() != static_cast<int>(resolveViewport->height()));
+
         if (filtered.empty() || !mPostprocessing)
         {
+            if (upscale)
+            {
+                // a resize recreates the scene texture's GL object
+                const GLuint sceneTexture = mTextureScene->getTextureObject(state.getContextID())->id();
+                if (!mSceneFbo || sceneTexture != mSceneFboTexture)
+                {
+                    mSceneFbo = createFbo(mTextureScene);
+                    mSceneFboTexture = sceneTexture;
+                }
+                upscaleToDestination(state, ext, mTextureScene, mSceneFbo, *resolveViewport);
+                cacheEmptyUniformStacks(uniformMap, emptyUniformStacks);
+                return;
+            }
+
             state.pushStateSet(mFallbackStateSet);
             state.apply();
 
@@ -195,6 +280,7 @@ namespace MWRender
         int lastShader = 0;
 
         unsigned int lastApplied = handle;
+        bool upscaleInputDrawn = false;
 
         const unsigned int cid = state.getContextID();
 
@@ -304,6 +390,20 @@ namespace MWRender
 
                     lastApplied = pass.mRenderTarget->getHandle(state.getContextID());
                 }
+                else if (pass.mResolve && index == filtered.back() && upscale)
+                {
+                    // at the render size, upscaled below
+                    if (!mUpscaleInput || mUpscaleInput->getTextureWidth() != mTextureScene->getTextureWidth()
+                        || mUpscaleInput->getTextureHeight() != mTextureScene->getTextureHeight())
+                    {
+                        mUpscaleInput = createTexture(
+                            mTextureScene->getTextureWidth(), mTextureScene->getTextureHeight(), GL_RGBA8);
+                        mUpscaleInputFbo = createFbo(mUpscaleInput);
+                    }
+                    mUpscaleInputFbo->apply(state, osg::FrameBufferObject::DRAW_FRAMEBUFFER);
+                    lastApplied = mUpscaleInputFbo->getHandle(cid);
+                    upscaleInputDrawn = true;
+                }
                 else if (pass.mResolve && index == filtered.back())
                 {
                     bindDestinationFbo();
@@ -352,6 +452,12 @@ namespace MWRender
             }
 
             state.popStateSet();
+        }
+
+        if (upscaleInputDrawn)
+        {
+            upscaleToDestination(state, ext, mUpscaleInput, mUpscaleInputFbo, *resolveViewport);
+            lastApplied = 0;
         }
 
         if (Stereo::getMultiview())

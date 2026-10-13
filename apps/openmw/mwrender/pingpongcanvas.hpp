@@ -2,6 +2,7 @@
 #define OPENMW_MWRENDER_PINGPONGCANVAS_H
 
 #include <array>
+#include <functional>
 #include <optional>
 
 #include <osg/FrameBufferObject>
@@ -60,7 +61,20 @@ namespace MWRender
 
         const osg::ref_ptr<osg::Texture>& getSceneTexture(size_t frameId) const { return mTextureScene; }
 
+        /// Scales the GL texture `input` into the GL texture `output` (e.g. MetalFX on iOS); false: not done, the
+        /// canvas stretches bilinearly instead
+        using Upscaler = std::function<bool(
+            unsigned input, int inputWidth, int inputHeight, unsigned output, int outputWidth, int outputHeight)>;
+
+        /// Platform upscaler for a final image rendered below the destination size (render scale), outside stereo
+        static void setUpscaler(Upscaler upscaler) { sUpscaler = std::move(upscaler); }
+
     private:
+        void upscaleToDestination(osg::State& state, osg::GLExtensions* ext, osg::Texture* source,
+            osg::FrameBufferObject* sourceFbo, const osg::Viewport& destination) const;
+
+        inline static Upscaler sUpscaler;
+
         bool mAvgLum = false;
         bool mPostprocessing = false;
 
@@ -83,6 +97,12 @@ namespace MWRender
         mutable osg::ref_ptr<osg::FrameBufferObject> mMultiviewResolveFramebuffer;
         mutable osg::ref_ptr<osg::FrameBufferObject> mDestinationFBO;
         mutable std::array<osg::ref_ptr<osg::FrameBufferObject>, 3> mFbos;
+        mutable osg::ref_ptr<osg::FrameBufferObject> mSceneFbo; // reads mTextureScene
+        mutable GLuint mSceneFboTexture = 0;
+        mutable osg::ref_ptr<osg::Texture2D> mUpscaleInput; // final pass at the render size, before upscaling
+        mutable osg::ref_ptr<osg::FrameBufferObject> mUpscaleInputFbo;
+        mutable osg::ref_ptr<osg::Texture2D> mUpscaled; // destination size
+        mutable osg::ref_ptr<osg::FrameBufferObject> mUpscaledFbo;
         mutable std::shared_ptr<LuminanceCalculator> mLuminanceCalculator;
         mutable osg::buffered_object<osg::State::UniformMap> mEmptyUniformStacks;
     };
