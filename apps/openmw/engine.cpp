@@ -1094,6 +1094,13 @@ void OMW::Engine::go()
             }
         }
 
+        // the setting can change at run time (options window)
+        if (mEnvironment.getFrameRateLimit() != Settings::video().mFramerateLimit)
+        {
+            mEnvironment.setFrameRateLimit(Settings::video().mFramerateLimit);
+            frameRateLimiter = Misc::makeFrameRateLimiter(mEnvironment.getFrameRateLimit());
+        }
+
         frameRateLimiter.limit();
     }
 
