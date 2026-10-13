@@ -121,6 +121,8 @@ ForcePerPixelLightingTooltip: |-
 
     Beachten Sie, dass Bodendecker-Shader und Partikeleffekte diese Einstellung ignorieren.
 FrameRateHint: "Hinweis: Drücken Sie F3,\num die aktuelle Bildrate anzuzeigen."
+FrameRateLimit: "Bildratenbegrenzung"
+FrameRateUncapped: "Unbegrenzt"
 GammaCorrection: "Gamma-Korrektur"
 GammaCorrectionValue: "Gamma-Korrektur ({value, number, ::.00})"
 GammaDark: "Dunkel"

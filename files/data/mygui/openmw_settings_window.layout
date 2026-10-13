@@ -387,6 +387,17 @@
                                 <Property key="Caption" value="#{OMWEngine:FrameRateHint}"/>
                             </Widget>
                         </Widget>
+                        <!-- shown on iOS only -->
+                        <Widget type="Widget" position="207 132 300 86" align="Left Top" name="IosFrameRateSettings">
+                            <Property key="Visible" value="false"/>
+                            <Widget type="TextBox" skin="NormalText" position="0 0 195 18" align="Left Top">
+                                <Property key="Caption" value="#{OMWEngine:FrameRateLimit}"/>
+                            </Widget>
+                            <Widget type="ComboBox" skin="MW_ComboBox" position="0 20 195 24" align="Left Top" name="FrameRateLimitList"/>
+                            <Widget type="AutoSizedTextBox" skin="SandText" position="0 54 300 32" align="Left Top">
+                                <Property key="Caption" value="#{OMWEngine:FrameRateHint}"/>
+                            </Widget>
+                        </Widget>
 
                         <Widget type="Widget" position="0 238 352 66" align="HStretch Top" name="FieldOfViewSettings">
                             <Widget type="TextBox" skin="NormalText" position="0 0 352 18" align="Left Top" name="FovText">

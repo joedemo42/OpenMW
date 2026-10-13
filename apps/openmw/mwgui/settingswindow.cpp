@@ -22,6 +22,7 @@
 #include <components/misc/constants.hpp>
 #include <components/misc/display.hpp>
 #include <components/misc/strings/algorithm.hpp>
+#include <components/misc/strings/format.hpp>
 #include <components/resource/resourcesystem.hpp>
 #include <components/resource/scenemanager.hpp>
 #include <components/sceneutil/lightmanager.hpp>
@@ -134,6 +135,33 @@ namespace
             box->setIndexSelected(3);
         else
             box->setIndexSelected(4);
+    }
+
+    void fillFrameRateLimitComboBox(MyGUI::ComboBox* box)
+    {
+        SDL_DisplayMode mode;
+        const int refreshRate
+            = SDL_GetDesktopDisplayMode(Settings::video().mScreen, &mode) == 0 ? mode.refresh_rate : 0;
+        const float current = Settings::video().mFramerateLimit;
+        for (const float limit : { 0.f, 120.f, 60.f, 40.f, 30.f })
+        {
+            // 120 and 40 fps need a 120 Hz display (40 does not divide 60 Hz: uneven frame pacing)
+            if ((limit == 120 || limit == 40) && refreshRate < 120)
+                continue;
+            if (limit == 0)
+                box->addItem(
+                    MyGUI::LanguageManager::getInstance().replaceTags("#{OMWEngine:FrameRateUncapped}"), limit);
+            else
+                box->addItem(Misc::StringUtils::format("%g fps", limit), limit);
+            if (limit == current)
+                box->setIndexSelected(box->getItemCount() - 1);
+        }
+        if (box->getIndexSelected() == MyGUI::ITEM_NONE)
+        {
+            // a value from settings.cfg that is not in the list
+            box->addItem(Misc::StringUtils::format("%g fps", current), current);
+            box->setIndexSelected(box->getItemCount() - 1);
+        }
     }
 
     void updateShadowMapResolutionComboBox(MyGUI::ComboBox* box)
@@ -286,6 +314,7 @@ namespace MWGui
         getWidget(mWindowModeList, "WindowModeList");
         getWidget(mVSyncModeList, "VSyncModeList");
         getWidget(mMetalHudList, "MetalHudList");
+        getWidget(mFrameRateLimitList, "FrameRateLimitList");
         getWidget(mWindowBorderButton, "WindowBorderButton");
         getWidget(mTextureFilteringButton, "TextureFilteringButton");
         getWidget(mAnisotropy, "Anisotropy");
@@ -343,8 +372,11 @@ namespace MWGui
         videoSettings->setVisible(true);
         getWidget(videoSettings, "FieldOfViewSettings");
         videoSettings->setPosition(0, 4);
+        getWidget(videoSettings, "IosFrameRateSettings");
+        videoSettings->setVisible(true);
+        // post-processing only: the frame rate hint below it is cut off, IosFrameRateSettings shows it
         getWidget(videoSettings, "GeneralVideoSettings");
-        videoSettings->setPosition(207, 98);
+        videoSettings->setCoord(207, 98, 300, 28);
 #endif
 
         mMainWidget->castType<MyGUI::Window>()->eventWindowChangeCoord
@@ -382,6 +414,9 @@ namespace MWGui
         mVSyncModeList->eventComboChangePosition += MyGUI::newDelegate(this, &SettingsWindow::onVSyncModeChanged);
         mMetalHudList->setIndexSelected(static_cast<size_t>(Settings::video().mMetalHud));
         mMetalHudList->eventComboChangePosition += MyGUI::newDelegate(this, &SettingsWindow::onMetalHudChanged);
+        fillFrameRateLimitComboBox(mFrameRateLimitList);
+        mFrameRateLimitList->eventComboChangePosition
+            += MyGUI::newDelegate(this, &SettingsWindow::onFrameRateLimitChanged);
 
         mKeyboardSwitch->eventMouseButtonClick += MyGUI::newDelegate(this, &SettingsWindow::onKeyboardSwitchClicked);
         mControllerSwitch->eventMouseButtonClick
@@ -643,6 +678,15 @@ namespace MWGui
         Settings::video().mMetalHud.set(static_cast<int>(pos));
         MWBase::Environment::get().getWindowManager()->interactiveMessageBox(
             "#{OMWEngine:ChangeRequiresRestart}", { "#{Interface:OK}" }, true);
+    }
+
+    void SettingsWindow::onFrameRateLimitChanged(MyGUI::ComboBox* sender, size_t pos)
+    {
+        if (pos == MyGUI::ITEM_NONE)
+            return;
+
+        Settings::video().mFramerateLimit.set(*sender->getItemDataAt<float>(pos));
+        apply();
     }
 
     void SettingsWindow::onWindowModeChanged(MyGUI::ComboBox* sender, size_t pos)

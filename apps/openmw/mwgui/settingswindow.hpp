@@ -40,6 +40,7 @@ namespace MWGui
         MyGUI::ComboBox* mWindowModeList;
         MyGUI::ComboBox* mVSyncModeList;
         MyGUI::ComboBox* mMetalHudList;
+        MyGUI::ComboBox* mFrameRateLimitList;
         MyGUI::Button* mWindowBorderButton;
         MyGUI::ComboBox* mTextureFilteringButton;
         MyGUI::ComboBox* mAnisotropy;
@@ -111,6 +112,7 @@ namespace MWGui
         void onWindowModeChanged(MyGUI::ComboBox* sender, size_t pos);
         void onVSyncModeChanged(MyGUI::ComboBox* sender, size_t pos);
         void onMetalHudChanged(MyGUI::ComboBox* sender, size_t pos);
+        void onFrameRateLimitChanged(MyGUI::ComboBox* sender, size_t pos);
 
         void onRebindAction(MyGUI::Widget* sender);
         void onInputTabMouseWheel(MyGUI::Widget* sender, int rel);
