@@ -5,6 +5,8 @@
 #include <components/debug/debuglog.hpp>
 #include <components/files/conversion.hpp>
 
+#include <CoreFoundation/CoreFoundation.h>
+#include <SDL_error.h>
 #include <SDL_messagebox.h>
 
 #include <fstream>
@@ -69,4 +71,25 @@ bool OMW::ensureUserConfig(const std::filesystem::path& configDir)
     std::filesystem::rename(tmpFile, cfgFile);
     Log(Debug::Info) << "Imported " << iniFile << " to " << cfgFile;
     return true;
+}
+
+void OMW::showUnofficialPortNotice()
+{
+    const CFStringRef key = CFSTR("UnofficialPortNoticeShown");
+    if (CFPreferencesGetAppBooleanValue(key, kCFPreferencesCurrentApplication, nullptr))
+        return;
+
+    const SDL_MessageBoxButtonData button{ SDL_MESSAGEBOX_BUTTON_RETURNKEY_DEFAULT, 0, "I understand." };
+    const SDL_MessageBoxData notice{ SDL_MESSAGEBOX_INFORMATION, nullptr, "",
+        "This is an unofficial port of OpenMW. Please don't bug the good people on the OpenMW Forums about it.", 1,
+        &button, nullptr };
+    int buttonId = -1;
+    // not shown: again at the next start
+    if (SDL_ShowMessageBox(&notice, &buttonId) != 0)
+    {
+        Log(Debug::Warning) << "Failed to show the unofficial port notice: " << SDL_GetError();
+        return;
+    }
+    CFPreferencesSetAppValue(key, kCFBooleanTrue, kCFPreferencesCurrentApplication);
+    CFPreferencesAppSynchronize(kCFPreferencesCurrentApplication);
 }
