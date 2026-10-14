@@ -36,7 +36,9 @@ die() { echo "error: $*" >&2; exit 1; }
 
 # ---- helpers for recipes ($DEP is the dependency being processed) ----
 
-MIN_IOS=26.0
+# ponytail: a change needs 'clean' of every dependency but moltenvk (own deployment target): LuaJIT, Boost and the CMake
+# configure caches do not follow it (upgrade path: MIN_IOS in the build stamps)
+MIN_IOS=18.0
 JOBS=$(sysctl -n hw.ncpu)
 
 # Toolchain values for one target: SDK, SDK_PATH, TRIPLE, TARGET_DIR (build/<dep>/<target>).

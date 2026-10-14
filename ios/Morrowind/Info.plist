@@ -26,6 +26,8 @@
 	<true/>
 	<key>LSSupportsGameMode</key>
 	<true/>
+	<key>GCSupportsGameMode</key>
+	<true/>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
 	<true/>
 	<key>UIFileSharingEnabled</key>

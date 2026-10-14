@@ -6,7 +6,7 @@ set(CMAKE_SYSTEM_NAME iOS)
 # cache entries: CMake's Darwin platform creates them on the first run, which drops normal variables of the same name
 # under OpenMW's policy level (CMP0126 OLD) -> no -arch in a fresh build dir, full rebuild on the next configure
 set(CMAKE_OSX_ARCHITECTURES arm64 CACHE STRING "" FORCE)
-set(CMAKE_OSX_DEPLOYMENT_TARGET 26.0 CACHE STRING "" FORCE)
+set(CMAKE_OSX_DEPLOYMENT_TARGET 18.0 CACHE STRING "" FORCE)
 
 if(CMAKE_OSX_SYSROOT MATCHES "[Ss]imulator")
     set(_ios_target simulator)
