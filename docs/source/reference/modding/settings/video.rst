@@ -214,3 +214,30 @@ Video Settings
    .. note::
 
       This setting is only available on iOS. The setting will not be displayed in the in-game menu on other platforms.
+
+.. omw-setting::
+   :title: metalfx sharpening
+   :type: boolean
+   :range: true, false
+   :default: false
+   :location: :bdg-info:`In Game > Options > Video`
+
+   Sharpens the 3D world after MetalFX has scaled it up (contrast adaptive sharpening).
+   It only has an effect while MetalFX upscales, i.e. with metalfx enabled and a render scale below 1.0.
+
+   .. note::
+
+      This setting is only available on iOS. The setting will not be displayed in the in-game menu on other platforms.
+
+.. omw-setting::
+   :title: metalfx sharpness
+   :type: float32
+   :range: 0.0 to 1.0
+   :default: 0.5
+   :location: :bdg-info:`In Game > Options > Video`
+
+   The strength of the MetalFX sharpening, from 0.0 (none) to 1.0 (strongest).
+
+   .. note::
+
+      This setting is only available on iOS. The setting will not be displayed in the in-game menu on other platforms.

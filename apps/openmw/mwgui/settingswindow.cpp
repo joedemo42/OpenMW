@@ -364,7 +364,8 @@ namespace MWGui
 
 #if defined(__APPLE__) && TARGET_OS_IPHONE
         // window and display controls have no effect on iOS (one full-screen window, presentation always synced to
-        // the display): field of view on top, below it the iOS video settings and next to them post-processing
+        // the display): field of view on top, below it the iOS video settings (two columns) and next to them
+        // post-processing, level with the frame rate limit
         MyGUI::Widget* videoSettings;
         getWidget(videoSettings, "WindowSettings");
         videoSettings->setVisible(false);
@@ -372,11 +373,8 @@ namespace MWGui
         videoSettings->setVisible(true);
         getWidget(videoSettings, "FieldOfViewSettings");
         videoSettings->setPosition(0, 4);
-        getWidget(videoSettings, "IosFrameRateSettings");
-        videoSettings->setVisible(true);
-        // post-processing only: the frame rate hint below it is cut off, IosFrameRateSettings shows it
         getWidget(videoSettings, "GeneralVideoSettings");
-        videoSettings->setCoord(207, 98, 300, 28);
+        videoSettings->setPosition(414, 98);
 #endif
 
         mMainWidget->castType<MyGUI::Window>()->eventWindowChangeCoord

@@ -34,6 +34,9 @@ namespace Settings
         SettingValue<float> mRenderScale{ mIndex, "Video", "render scale", makeClampSanitizerFloat(0.5f, 1.0f) };
         SettingValue<int> mMetalHud{ mIndex, "Video", "metal hud", makeClampSanitizerInt(0, 2) };
         SettingValue<bool> mMetalFx{ mIndex, "Video", "metalfx" };
+        SettingValue<bool> mMetalFxSharpening{ mIndex, "Video", "metalfx sharpening" };
+        SettingValue<float> mMetalFxSharpness{ mIndex, "Video", "metalfx sharpness",
+            makeClampSanitizerFloat(0.0f, 1.0f) };
     };
 }
 
