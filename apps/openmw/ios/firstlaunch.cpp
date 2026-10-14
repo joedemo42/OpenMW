@@ -37,6 +37,13 @@ bool OMW::ensureUserConfig(const std::filesystem::path& configDir)
     std::filesystem::create_directories(dataDir);
 
     const std::filesystem::path iniFile = configDir / "Morrowind.ini";
+    // on the PC the ini sits next to "Data Files": copied into Data along with them, it is moved where it belongs
+    const std::filesystem::path dataIniFile = dataDir / "Morrowind.ini";
+    if (!std::filesystem::exists(iniFile) && std::filesystem::exists(dataIniFile))
+    {
+        std::filesystem::rename(dataIniFile, iniFile);
+        Log(Debug::Info) << "Moved " << dataIniFile << " to " << iniFile;
+    }
     if (!std::filesystem::exists(iniFile))
         return missingGameFiles("No " + Files::pathToUnicodeString(iniFile) + " to import");
 

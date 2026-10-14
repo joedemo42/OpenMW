@@ -301,7 +301,7 @@ upload() {
     echo "==> uploaded (HTTP $code)"
 }
 
-# Game data payload: ./Data -> Documents/Data (Morrowind.ini is not part of it: the user copies it to Config/).
+# Game data payload: ./Data -> Documents/Data (Morrowind.ini is not part of it: the user copies it to Config/ or Data/).
 documents() {  # <zip|install>
     [ -d "$REPO/Data" ] || die "no payload: $REPO/Data missing"
     if [ "$1" = zip ]; then
