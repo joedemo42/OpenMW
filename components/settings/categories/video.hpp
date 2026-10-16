@@ -31,7 +31,7 @@ namespace Settings
         SettingValue<float> mFramerateLimit{ mIndex, "Video", "framerate limit", makeMaxSanitizerFloat(0) };
         SettingValue<float> mContrast{ mIndex, "Video", "contrast", makeMaxStrictSanitizerFloat(0) };
         SettingValue<float> mGamma{ mIndex, "Video", "gamma", makeMaxStrictSanitizerFloat(0) };
-        SettingValue<float> mRenderScale{ mIndex, "Video", "render scale", makeClampSanitizerFloat(0.5f, 1.0f) };
+        SettingValue<float> mRenderScale{ mIndex, "Video", "render scale", makeClampSanitizerFloat(0.25f, 1.0f) };
         SettingValue<int> mMetalHud{ mIndex, "Video", "metal hud", makeClampSanitizerInt(0, 2) };
         SettingValue<bool> mMetalFx{ mIndex, "Video", "metalfx" };
         SettingValue<bool> mMetalFxSharpening{ mIndex, "Video", "metalfx sharpening" };

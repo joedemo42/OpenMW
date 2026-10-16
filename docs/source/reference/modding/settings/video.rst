@@ -176,7 +176,7 @@ Video Settings
 .. omw-setting::
    :title: render scale
    :type: float32
-   :range: 0.5 to 1.0
+   :range: 0.25 to 1.0
    :default: 1.0
    :location: :bdg-info:`In Game > Options > Video`
 
