@@ -199,7 +199,9 @@ ReflectionShaderDetailSky: "Sky"
 ReflectionShaderDetailTerrain: "Terrain"
 ReflectionShaderDetailWorld: "World"
 Refraction: "Refraction"
-RenderScaleValue: "Render Scale ({value, number, percent})"
+# render scale x 2 (iOS): 100 % = the panel's point resolution (1x), 200 % = its pixels, in every display zoom.
+# ponytail: factor 2 = iPads (all @2x); on @3x iPhones 100 % is 1.5x points (exact: factor from UIScreen.scale)
+RenderScaleValue: "Render Scale ({value, number, :: percent scale/200 precision-integer})"
 ResetControls: "Reset Controls"
 Screenshot: "Screenshot"
 Scripts: "Scripts"

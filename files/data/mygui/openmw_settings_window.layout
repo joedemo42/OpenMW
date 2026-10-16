@@ -350,14 +350,14 @@
                             <Widget type="TextBox" skin="NormalText" position="0 54 195 18" align="Left Top" name="RenderScaleText">
                             </Widget>
                             <Widget type="ScrollBar" skin="MW_HScroll" position="0 76 195 18" align="Left Top">
-                                <Property key="Range" value="11"/>
+                                <Property key="Range" value="16"/>
                                 <Property key="Page" value="1"/>
                                 <Property key="WheelPage" value="1"/>
                                 <UserString key="SettingType" value="Slider"/>
                                 <UserString key="SettingCategory" value="Video"/>
                                 <UserString key="SettingName" value="render scale"/>
                                 <UserString key="SettingValueType" value="Float"/>
-                                <UserString key="SettingMin" value="0.5"/>
+                                <UserString key="SettingMin" value="0.25"/>
                                 <UserString key="SettingMax" value="1"/>
                                 <UserString key="SettingLabelWidget" value="RenderScaleText"/>
                                 <UserString key="SettingLabelCaption" value="RenderScaleValue"/>

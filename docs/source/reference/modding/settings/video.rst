@@ -185,7 +185,8 @@ Video Settings
 
    .. note::
 
-      The in-game menu shows this setting only on iOS.
+      The in-game menu shows this setting only on iOS, doubled as 50 % to 200 %: 100 % (0.5) is the display's
+      point resolution (1x), 200 % (1.0) its pixel resolution (2x), independent of the display zoom.
 
 .. omw-setting::
    :title: metal hud
