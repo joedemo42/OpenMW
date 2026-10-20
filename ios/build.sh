@@ -137,10 +137,12 @@ build_openmw() {  # <iphoneos|iphonesimulator>
         -DOPENAL_LIBRARY="$deps/openal-soft/$target/install/lib/libopenal.a"
         # Lua custom allocator check: try_run cannot run when cross-compiling; LuaJIT with GC64 supports it
         -DRUN_RESULT_VAR=0)
-    stamp=$(printf '%s\n' "${args[@]}")
+    # with the SDK path: CMake keeps the versioned SDK path in its cache and compiler checks, so an Xcode update needs
+    # a fresh configure
+    stamp=$(printf '%s\n' "$(xcrun --sdk "$sdk" --show-sdk-path)" "${args[@]}")
     if [ ! -f "$dir/build.ninja" ] || [ "$(cat "$dir/.configured" 2>/dev/null)" != "$stamp" ]; then
         echo "==> configure OpenMW ($sdk)"
-        cmake -S "$REPO" -B "$dir" "${args[@]}"
+        cmake --fresh -S "$REPO" -B "$dir" "${args[@]}"
         echo "$stamp" > "$dir/.configured"
     fi
     echo "==> build OpenMW ($sdk)"
