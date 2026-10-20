@@ -53,7 +53,8 @@ namespace Files
 
     std::filesystem::path IosPath::getLocalPath() const
     {
-        return getBundlePath() / "openmw";
+        // not "openmw": next to an executable named OpenMW on the Mac's case-insensitive file system
+        return getBundlePath() / "engine";
     }
 
     std::filesystem::path IosPath::getGlobalDataPath() const
