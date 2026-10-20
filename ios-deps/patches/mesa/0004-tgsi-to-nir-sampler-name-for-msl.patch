@@ -1,3 +1,15 @@
+tgsi_to_nir: name sampler variables "samp" instead of "sampler"
+
+SPIRV-Cross (used by MoltenVK) emits the variable as a Metal argument
+buffer member next to a member of the Metal type `sampler`; the member
+name then hides the type and the generated shader fails to compile, so
+pipeline creation fails for Mesa's internal blit shaders (u_blitter,
+e.g. glReadPixels). The root cause is in SPIRV-Cross, whose version
+MoltenVK's build pins, so the rename is done on the Mesa side. Affects
+only Mesa-internal (TGSI) shaders.
+
+Upstream: not submitted.
+
 --- a/src/gallium/auxiliary/nir/tgsi_to_nir.c	2026-09-30 08:08:12
 +++ b/src/gallium/auxiliary/nir/tgsi_to_nir.c	2026-09-30 08:08:12
 @@ -1098,8 +1098,10 @@

@@ -1,3 +1,14 @@
+zink: no push descriptors on MoltenVK
+
+MoltenVK copies the descriptor data of every push into its command
+buffer (MVKCmdPushDescriptorSetWithTemplate::setContent), which took
+30-40 % of zink's driver thread in OpenMW. Treat MoltenVK like AMD in
+the existing driver-id quirk, so descriptors go through zink's regular
+descriptor sets. Measured on an iPad Pro (M1): zink driver thread
+-39 % CPU, frame times unchanged. Other drivers are unaffected.
+
+Upstream: not submitted.
+
 --- a/src/gallium/drivers/zink/zink_screen.c
 +++ b/src/gallium/drivers/zink/zink_screen.c
 @@ -3011,6 +3011,10 @@

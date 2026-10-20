@@ -1,3 +1,20 @@
+uikit: interface orientation on iOS 27
+
+With the iOS 27 SDK, statusBarOrientation never reports landscape: SDL2
+created a portrait display mode and rotated the view back to portrait
+on layout changes, shrinking a landscape game into a corner. New
+UIKit_GetInterfaceOrientation() returns the active window scene's
+effectiveGeometry.interfaceOrientation on iOS 27 (statusBarOrientation
+before); used by UIKit_ComputeViewFrame, UIKit_IsDisplayLandscape,
+SDL_OnApplicationDidChangeStatusBarOrientation and the launch image
+code. The scene delegate (patch 0001) runs the orientation handler from
+windowScene:didUpdateEffectiveGeometry: when the orientation changed.
+SDL3's version check against 27000 is written as 270000, the macro's
+real value for iOS 27. Needs patch 0001 (UIKit_GetActiveWindowScene).
+
+Upstream: backport of SDL3 114aca1727 ("Fix for iOS 27 no op on
+statusBarOrientation", #16355).
+
 diff -ru a/src/video/uikit/SDL_uikitappdelegate.m b/src/video/uikit/SDL_uikitappdelegate.m
 --- a/src/video/uikit/SDL_uikitappdelegate.m	2026-10-01 10:45:17
 +++ b/src/video/uikit/SDL_uikitappdelegate.m	2026-10-01 10:45:34

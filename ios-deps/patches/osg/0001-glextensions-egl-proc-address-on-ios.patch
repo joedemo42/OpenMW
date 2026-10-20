@@ -1,3 +1,16 @@
+GLExtensions: eglGetProcAddress on iOS with desktop GL
+
+osg::getGLExtensionFuncPtr uses eglGetProcAddress on iOS when OSG is
+built for desktop GL (TARGET_OS_IPHONE without OSG_GLES*_AVAILABLE),
+like the existing Emscripten branch. On Apple platforms OSG looks GL
+functions up with dlsym(dlopen(NULL)), i.e. in the app's exported
+symbols; with a statically linked Mesa that depends on what the linker
+and strip keep exported. OSG_GL_LIBRARY_STATIC only covers GLES2. Mesa's
+EGL returns every GL function. Other platforms and GLES builds are
+unchanged.
+
+Upstream: not submitted.
+
 --- a/src/osg/GLExtensions.cpp
 +++ b/src/osg/GLExtensions.cpp
 @@ -36,6 +36,13 @@

@@ -1,3 +1,15 @@
+egl/surfaceless: fall back to zink without DRM devices
+
+The surfaceless platform now also takes the device-less driver path for
+zink, not only for swrast with LIBGL_ALWAYS_SOFTWARE. iOS has no DRM
+devices: the hardware probe finds none and the software fallback picks
+swrast (not built), so surfaceless EGL never reached zink. Forcing
+software rendering is no workaround either, because zink then accepts
+only CPU Vulkan devices, while MoltenVK exposes the GPU. With the patch
+eglInitialize retries with zink, no environment variables needed.
+
+Upstream: not submitted.
+
 --- a/src/egl/drivers/dri2/platform_surfaceless.c	2026-09-30 07:30:55
 +++ b/src/egl/drivers/dri2/platform_surfaceless.c	2026-09-30 07:30:55
 @@ -389,8 +389,10 @@

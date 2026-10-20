@@ -1,3 +1,19 @@
+zink: one I/O variable per varying slot
+
+rework_io_vars now creates one variable per varying slot, from component
+0 up to the highest component accessed, instead of separate variables
+for non-overlapping component ranges (fb_fetch and dual-source outputs
+stay separate). A split slot, e.g. fixed-function texturing reading
+TEX0.xy and TEX0.w for projective lookups while the vertex shader writes
+TEX0 as vec4, becomes two fragment inputs in SPIRV-Cross's MSL. Metal
+matches every fragment input to a vertex output by name, so MoltenVK's
+pipeline creation failed and zink bound a NULL pipeline (crash). Vulkan
+itself allows the split. Components below the first accessed one are
+declared but unused.
+
+Upstream: not submitted; Mesa 26 replaces this code with
+nir_unlower_io_to_vars, which uses the same policy.
+
 --- a/src/gallium/drivers/zink/zink_compiler.c
 +++ b/src/gallium/drivers/zink/zink_compiler.c
 @@ -5251,11 +5251,11 @@

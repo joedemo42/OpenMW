@@ -1,3 +1,14 @@
+CMake: find libpng and libjpeg on iOS
+
+OSG's top-level CMakeLists looks for libjpeg, libpng (and giflib,
+libtiff) only when not on Apple, because macOS reads images through
+ImageIO. On CMake's iOS platform that silently skipped the png plugin,
+which OpenMW needs. Search them for iOS too; the recipe passes the
+paths of the libraries built here (giflib and libtiff are not found).
+macOS and the legacy OSG_BUILD_PLATFORM_IPHONE builds are unchanged.
+
+Upstream: not submitted.
+
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -820,9 +820,9 @@

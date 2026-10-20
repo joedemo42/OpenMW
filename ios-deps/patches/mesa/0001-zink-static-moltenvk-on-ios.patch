@@ -1,3 +1,13 @@
+zink: use the statically linked MoltenVK on iOS
+
+On iOS (TARGET_OS_IPHONE), zink takes vkGetInstanceProcAddr and
+vkGetDeviceProcAddr directly from the linked Vulkan implementation
+instead of dlopen()ing "@rpath/libvulkan.1.dylib": the iOS build links
+MoltenVK statically, so there is no Vulkan loader or dylib to open.
+Other platforms are unchanged.
+
+Upstream: not submitted.
+
 --- a/src/gallium/drivers/zink/zink_screen.c	2026-09-30 00:25:29
 +++ b/src/gallium/drivers/zink/zink_screen.c	2026-09-30 00:25:29
 @@ -87,6 +87,13 @@

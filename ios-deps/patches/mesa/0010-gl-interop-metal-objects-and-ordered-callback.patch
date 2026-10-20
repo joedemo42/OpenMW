@@ -1,3 +1,26 @@
+zink/st: Metal objects through GL interop, callback after a flush
+
+1. zink enables VK_EXT_metal_objects when available and implements the
+   GL interop hook interop_export_object: MesaGLInteropEGLExportObject
+   on a texture returns the MTLDevice, MoltenVK's MTLCommandQueue (the
+   one zink submits to) and the texture's MTLTexture (new struct
+   mesa_glinterop_metal_objects in mesa_glinterop.h), no dmabuf.
+2. MesaGLInteropRunAfterFlush(fn, data) flushes the current context
+   asynchronously and runs fn on the threaded context's driver thread
+   after that flush. zink's flush returns only after vkQueueSubmit,
+   which MoltenVK commits synchronously, so Metal work committed in fn
+   runs after the GL commands issued so far and before later ones,
+   without a CPU wait for the GPU.
+
+OpenMW's MetalFX upscaling needs the Metal textures behind GL textures
+and Metal work in GL command order on the same queue; zink had no
+interop hook on Apple platforms. Limits: the exported objects are not
+retained (valid while the GL texture keeps its storage), and ordering
+relies on MoltenVK's default synchronous queue submits. Non-Metal
+builds are unchanged.
+
+Upstream: not submitted.
+
 --- a/include/GL/mesa_glinterop.h
 +++ b/include/GL/mesa_glinterop.h
 @@ -443,6 +443,26 @@

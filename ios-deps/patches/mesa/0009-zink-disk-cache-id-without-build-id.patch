@@ -1,3 +1,18 @@
+zink: disk cache ID from the binary's timestamp without ELF build-id
+
+Without an ELF build-id, zink's disk cache ID now hashes the
+modification time of the binary that contains zink (dladdr + stat, as
+disk_cache_get_function_identifier does); without that timestamp zink
+runs without a disk cache. On Apple platforms the ID was only MoltenVK's
+pipelineCacheUUID plus zink's flags, and the cache key has no Mesa
+version: after an app update (Library/Caches survives it) a build with
+changed Mesa code could load NIR finalized by the previous build. Mesa
+is linked statically into the app, whose executable is relinked by
+every build. ELF builds are unchanged.
+
+Upstream: not submitted; Mesa 26 uses the Mach-O LC_UUID instead
+(util/build_id.c), drop this patch on an upgrade.
+
 --- a/src/gallium/drivers/zink/zink_screen.c
 +++ b/src/gallium/drivers/zink/zink_screen.c
 @@ -316,6 +316,15 @@

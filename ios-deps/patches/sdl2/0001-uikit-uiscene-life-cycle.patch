@@ -1,3 +1,22 @@
+uikit: UIScene life cycle
+
+Apps built with the iOS 27 SDK do not launch without the UIScene life
+cycle, which SDL2 lacks. Following the idea of SDL3 commit b46e26e
+(SDL 3.4):
+- SDLUIKitDelegate returns a scene configuration with the new
+  SDLUIKitSceneDelegate.
+- SDLUIKitSceneDelegate starts SDL_main when the scene connects
+  (instead of didFinishLaunching) and forwards opened URLs.
+- UIKit_CreateWindow and the message box window attach to the active
+  UIWindowScene.
+Scene mode only when the app declares UIApplicationSceneManifest;
+otherwise the behaviour is unchanged. App state events still come from
+the UIApplication notifications SDL2 already observes. In scene mode
+there is no programmatic launch-screen window (the system launch screen
+shows until the first frame).
+
+Upstream: not submitted; SDL 3.4 has a scene life cycle of its own.
+
 diff -ru a/src/video/uikit/SDL_uikitappdelegate.h b/src/video/uikit/SDL_uikitappdelegate.h
 --- a/src/video/uikit/SDL_uikitappdelegate.h	2026-09-30 00:21:15
 +++ b/src/video/uikit/SDL_uikitappdelegate.h	2026-09-30 00:22:34

@@ -1,3 +1,18 @@
+zink: recompute attachments after an unordered blit
+
+After an unordered blit (a u_blitter blit recorded into the reordered
+command buffer), set rp_loadop_changed, so the next render pass on the
+restored framebuffer recomputes its attachment info. The blit's own
+render pass recomputes ctx->dynamic_fb for the blit framebuffer and
+clears the flag, and the restore puts back the old rp_changed (false):
+the next render pass then reused stale loadOps. In OpenMW a depth-only
+resolve blit left the scene color at loadOp CLEAR, wiping everything
+drawn before it. Intermittent (only when a batch flush ended the render
+pass right before the blit) and not Metal-specific. Costs one
+attachment-info recompute (CPU) after such a blit.
+
+Upstream: not submitted; unchanged in Mesa 26.2.3.
+
 --- a/src/gallium/drivers/zink/zink_blit.c
 +++ b/src/gallium/drivers/zink/zink_blit.c
 @@ -479,6 +479,11 @@

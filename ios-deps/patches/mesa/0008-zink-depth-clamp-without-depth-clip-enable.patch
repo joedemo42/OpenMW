@@ -1,3 +1,19 @@
+zink: depth clamp with core depthClamp, without depth_clip_enable
+
+zink now offers depth_clip_disable (GL_ARB_depth_clamp) also when the
+device has core depthClamp but not VK_EXT_depth_clip_enable, and warns
+about the missing extension only for a clip/clamp combination core
+Vulkan cannot express (clip == clamp). GL only asks for clip == !clamp,
+and without the extension Vulkan disables depth clipping exactly when
+depthClampEnable is set, which zink already derives from the rasterizer
+state. MoltenVK 1.4.2 has depthClamp but not the extension, so zink
+exposed no depth clamp at all: OpenMW's shadow pass enables
+GL_DEPTH_CLAMP unconditionally (GL_INVALID_ENUM on every draw) and
+shadow casters outside the light frustum's depth range were clipped.
+Devices with the extension are unchanged.
+
+Upstream: not submitted; same condition in Mesa 26.2.3.
+
 --- a/src/gallium/drivers/zink/zink_screen.c
 +++ b/src/gallium/drivers/zink/zink_screen.c
 @@ -921,7 +921,10 @@
