@@ -10,13 +10,13 @@ GPLv3 (see [LICENSE](../LICENSE)); the dependencies come with their own licenses
 ## Requirements
 
 - A Mac with Apple silicon and Xcode 27.1 with the iOS 27 platform installed (Xcode > Settings > Components).
-  Tested on macOS 27; other Xcode versions are untested.
+  Tested on macOS 27 (M2 Pro) with Python 3.14; other Xcode versions are untested.
 - [Homebrew](https://brew.sh) with the host tools the build uses:
 
   ```
   brew install cmake ninja meson xcodegen pkgconf python bison
   ```
-- Network access for the first build (it downloads about 0.8 GB of pinned dependency sources) and about 15 GB of
+- Network access for the first build (it downloads about 0.8 GB of pinned dependency sources) and about 10 GB of
   disk space.
 - A device with iOS or iPadOS 18.0 or later. The app is made for the iPad; on the iPhone it runs in landscape only and
   the user interface is not adapted to the small screen.
@@ -32,9 +32,9 @@ cd OpenMW
 ```
 
 `build` builds a debug app for the iOS Simulator. The first run builds all dependencies from source (MoltenVK, Mesa,
-SDL2, OpenSceneGraph, Boost, ICU, FFmpeg, OpenAL Soft and more) into `ios-deps/` and takes roughly half an hour;
-later builds are incremental. The app does not run in the Simulator, though (see Known limitations): to play, build
-for a device.
+SDL2, OpenSceneGraph, Boost, ICU, FFmpeg, OpenAL Soft and more) into `ios-deps/` and takes about 20 minutes on an
+M2 Pro; the first device build adds about 10 minutes for the device libraries. Later builds are incremental. The
+app does not run in the Simulator, though (see Known limitations): to play, build for a device.
 
 ### Device builds
 
