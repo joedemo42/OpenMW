@@ -30,6 +30,7 @@ Getting Started
 * [Official forums](https://forum.openmw.org/)
 * [Installation instructions](https://openmw.readthedocs.io/en/latest/manuals/installation/index.html)
 * [Build from source](https://wiki.openmw.org/index.php?title=Development_Environment_Setup)
+* [iOS/iPadOS port (unofficial)](ios/README.md)
 * [Testing the game](https://wiki.openmw.org/index.php?title=Testing)
 * [How to contribute](https://wiki.openmw.org/index.php?title=Contribution_Wanted)
 * [Report a bug](https://gitlab.com/OpenMW/openmw/issues) - read the [guidelines](https://wiki.openmw.org/index.php?title=Bug_Reporting_Guidelines) before submitting your first bug!
