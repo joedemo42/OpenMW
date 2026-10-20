@@ -1,4 +1,4 @@
-name: Morrowind-iOS
+name: OpenMW-iOS
 options:
   deploymentTarget:
     iOS: "18.0"
@@ -10,12 +10,12 @@ settings:
     ARCHS: arm64
     CLANG_ENABLE_OBJC_ARC: YES
 targets:
-  Morrowind:
+  OpenMW:
     type: application
     platform: iOS
     sources:
-      - path: Morrowind
-        excludes: ["settings.cfg"]  # staged into Morrowind.app/engine by the resources script
+      - path: OpenMW
+        excludes: ["settings.cfg"]  # staged into OpenMW.app/engine by the resources script
     dependencies:
       - framework: ../ios-deps/artifacts/SDL2.xcframework
         embed: false
@@ -75,7 +75,7 @@ targets:
       - sdk: libz.tbd
     postBuildScripts:
       # OpenMW's local config, settings defaults and resources, staged by its CMake build, and the iOS settings
-      # defaults (loaded as additional defaults from the local config dir) -> Morrowind.app/engine
+      # defaults (loaded as additional defaults from the local config dir) -> OpenMW.app/engine
       - name: OpenMW resources
         basedOnDependencyAnalysis: false
         # declared so code signing re-runs after it (a changed resource would break the seal otherwise)
@@ -85,16 +85,16 @@ targets:
           dest="$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/engine"
           mkdir -p "$dest"
           rsync -a --delete "$OPENMW_BUILD_DIR/resources" "$OPENMW_BUILD_DIR/openmw.cfg" \
-              "$OPENMW_BUILD_DIR/defaults.bin" "$OPENMW_BUILD_DIR/gamecontrollerdb.txt" "$SRCROOT/Morrowind/settings.cfg" \
+              "$OPENMW_BUILD_DIR/defaults.bin" "$OPENMW_BUILD_DIR/gamecontrollerdb.txt" "$SRCROOT/OpenMW/settings.cfg" \
               "$dest/"
     settings:
       base:
-        PRODUCT_NAME: Morrowind
+        PRODUCT_NAME: OpenMW
         PRODUCT_BUNDLE_IDENTIFIER: org.openmw.openmw
-        INFOPLIST_FILE: Morrowind/Info.plist
+        INFOPLIST_FILE: OpenMW/Info.plist
         GENERATE_INFOPLIST_FILE: NO
         # increased memory limit (automatic signing adds the capability to the App ID)
-        CODE_SIGN_ENTITLEMENTS: Morrowind/Morrowind.entitlements
+        CODE_SIGN_ENTITLEMENTS: OpenMW/OpenMW.entitlements
         TARGETED_DEVICE_FAMILY: "1,2"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         # OpenMW's static libraries (CMake build by ios/build.sh), SDL_main in libopenmw.a

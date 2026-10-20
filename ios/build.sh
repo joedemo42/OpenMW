@@ -1,12 +1,12 @@
 #!/bin/bash
-# Builds, installs and runs the Morrowind iOS app host.
+# Builds, installs and runs the OpenMW iOS app host.
 set -euo pipefail
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 SCRIPT="${0#"$PWD/"}"
 DERIVED="$REPO/DerivedData"
 LOG_DIR="$REPO/log"
-PROJECT="$REPO/ios/Morrowind-iOS.xcodeproj"
+PROJECT="$REPO/ios/OpenMW-iOS.xcodeproj"
 BUNDLE_ID=org.openmw.openmw
 DEFAULT_SIMULATOR="iPad Air 11-inch (M4)"
 REPO_SERVER=http://repo-server.invalid/upload/
@@ -114,7 +114,7 @@ xcbuild() {
     next_build_number
     generate_project
     echo "==> build $sdk $CONFIG (version $(version), build $BUILD_NUMBER)"
-    xcodebuild -project "$PROJECT" -scheme Morrowind -configuration "$CONFIG" -sdk "$sdk" \
+    xcodebuild -project "$PROJECT" -scheme OpenMW -configuration "$CONFIG" -sdk "$sdk" \
         -derivedDataPath "$DERIVED" -allowProvisioningUpdates -quiet \
         MARKETING_VERSION="$(version)" CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
         OPENMW_BUILD_DIR="$DERIVED/openmw/$CONFIG-$sdk" "$@"
@@ -123,7 +123,7 @@ xcbuild() {
 app_path() {  # <simulator|device>
     local sdk=iphonesimulator
     [ "$1" = device ] && sdk=iphoneos
-    echo "$DERIVED/Build/Products/$CONFIG-$sdk/Morrowind.app"
+    echo "$DERIVED/Build/Products/$CONFIG-$sdk/OpenMW.app"
 }
 
 # Current build = the slice's (platform-configuration) stamp, written by a successful 'build', exists and its app in
@@ -142,7 +142,7 @@ build() {  # <simulator|device|both>
     rm -f "$DERIVED/current-$1-$CONFIG"
     # Release strips the executable in place: without a relink (no code change) Xcode's dSYM step would read the
     # stripped binary and write a dSYM without debug info
-    [ "$CONFIG" = Release ] && rm -f "$(app_path "$1")/Morrowind"
+    [ "$CONFIG" = Release ] && rm -f "$(app_path "$1")/OpenMW"
     case "$1" in
         simulator) xcbuild iphonesimulator -destination "generic/platform=iOS Simulator" ;;
         device) xcbuild iphoneos -destination "generic/platform=iOS" ;;
@@ -240,10 +240,10 @@ run_app() {  # <seconds> <label> [app args]
     wait $pid 2>/dev/null || true
     if [ "$KIND" = simulator ]; then
         xcrun simctl spawn "$TARGET" log show --style compact --start "$(date -r "$start" '+%Y-%m-%d %H:%M:%S')" \
-            --predicate 'process == "Morrowind"' > "$LOG_DIR/system.log" 2>&1 || true
+            --predicate 'process == "OpenMW"' > "$LOG_DIR/system.log" 2>&1 || true
     fi
     local report
-    for report in $(find "$HOME/Library/Logs/DiagnosticReports" -name 'Morrowind*.ips' -newer "$marker" 2>/dev/null); do
+    for report in $(find "$HOME/Library/Logs/DiagnosticReports" -name 'OpenMW*.ips' -newer "$marker" 2>/dev/null); do
         cp "$report" "$LOG_DIR/"
         echo "warning: crash report $(basename "$report") -> log/" >&2
     done
@@ -253,13 +253,13 @@ run_app() {  # <seconds> <label> [app args]
 # Packages the current device build as is (signed by 'build': Apple Development, team profile).
 make_ipa() {  # [--unsigned]
     require_build device
-    local out="$DERIVED/ipa" name=Morrowind.ipa
-    [ "${1:-}" = --unsigned ] && name=Morrowind-unsigned.ipa
+    local out="$DERIVED/ipa" name=OpenMW.ipa
+    [ "${1:-}" = --unsigned ] && name=OpenMW-unsigned.ipa
     rm -rf "$out/Payload" && mkdir -p "$out/Payload"
     cp -R "$(app_path device)" "$out/Payload/"
     if [ "${1:-}" = --unsigned ]; then
-        codesign --remove-signature "$out/Payload/Morrowind.app"
-        rm -rf "$out/Payload/Morrowind.app/_CodeSignature" "$out/Payload/Morrowind.app/embedded.mobileprovision"
+        codesign --remove-signature "$out/Payload/OpenMW.app"
+        rm -rf "$out/Payload/OpenMW.app/_CodeSignature" "$out/Payload/OpenMW.app/embedded.mobileprovision"
     fi
     (cd "$out" && rm -f "$name" && zip -qry "$name" Payload && rm -rf Payload)
     IPA="$out/$name"

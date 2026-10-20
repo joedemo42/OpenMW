@@ -1,5 +1,5 @@
 #!/bin/bash
-# Profiles the current release device build of the Morrowind iOS app: OpenMW's frame stats, optional Instruments trace
+# Profiles the current release device build of the OpenMW iOS app: OpenMW's frame stats, optional Instruments trace
 # and screenshots for a measured window -> log/perf-<label>/ + summary.
 set -euo pipefail
 
@@ -8,7 +8,7 @@ SCRIPT="${0#"$PWD/"}"
 DERIVED="$REPO/DerivedData"
 LOG_DIR="$REPO/log"
 BUNDLE_ID=org.openmw.openmw
-APP="$DERIVED/Build/Products/Release-iphoneos/Morrowind.app"
+APP="$DERIVED/Build/Products/Release-iphoneos/OpenMW.app"
 STATS_FILE=Library/Caches/openmw-stats.txt  # in the app's data container, not visible in the Files app
 
 usage() {
@@ -145,25 +145,25 @@ for _, row in ET.iterparse(xml):
 
 # the app's frames: symbolicate with the dSYM (same UUID only)
 uuid = subprocess.run(["dwarfdump", "--uuid", dsym], capture_output=True, text=True).stdout.split()
-app = {(a, load) for _, _, fs in samples for n, a, b, u, load in fs if b == "Morrowind" and n.startswith("0x")}
+app = {(a, load) for _, _, fs in samples for n, a, b, u, load in fs if b == "OpenMW" and n.startswith("0x")}
 names = {}
 if app:
-    trace_uuid = next(u for _, _, fs in samples for n, a, b, u, l in fs if b == "Morrowind")
+    trace_uuid = next(u for _, _, fs in samples for n, a, b, u, l in fs if b == "OpenMW")
     if len(uuid) > 1 and uuid[1] == trace_uuid:
         load = next(iter(app))[1]
         addrs = sorted(a for a, _ in app)
         out = subprocess.run(["xcrun", "atos", "-o", dsym, "-arch", "arm64", "-l", hex(load)] + [hex(a) for a in addrs],
                              capture_output=True, text=True).stdout.splitlines()
-        names = {a: re.sub(r" \(in Morrowind\)| \(.*\.\w+:\d+\)$|\(.*", "", n).strip() for a, n in zip(addrs, out)}
+        names = {a: re.sub(r" \(in OpenMW\)| \(.*\.\w+:\d+\)$|\(.*", "", n).strip() for a, n in zip(addrs, out)}
     else:
         print("trace: dSYM UUID differs from the traced binary, app frames unsymbolicated")
 def name(frame):
     n, a, b, _, _ = frame
-    return names.get(a, n) if b == "Morrowind" else n
+    return names.get(a, n) if b == "OpenMW" else n
 
 def component(frame):
     n, b = name(frame), frame[2]
-    if b != "Morrowind":
+    if b != "OpenMW":
         return "Metal driver" if re.match(r"AGX|IOGPU|Metal|IOKit", b) else "system (" + b + ")"
     for pattern, comp in ((r"^(zink|nir|spirv|vk_|tc_|_tc|st_|_mesa|util_|u_|glsl|blitter|pipe|ralloc)", "Mesa/zink"),
                           (r"MVK|mvk|SPIRV|spirv_cross|MoltenVK", "MoltenVK"),
@@ -253,7 +253,7 @@ print(json.dumps(env))' "$container/$STATS_FILE" "$STATS" "${ENVS[@]+"${ENVS[@]}
     pid=$!
     if wait_alive $pid "$WARMUP"; then
         if [ -n "$TRACE" ]; then
-            xcrun xctrace record --quiet --device "$TARGET" --template "$TRACE" --attach Morrowind \
+            xcrun xctrace record --quiet --device "$TARGET" --template "$TRACE" --attach OpenMW \
                 --time-limit "${SECONDS_ARG}s" --output "$out/trace.trace" > "$out/xctrace.log" 2>&1 &
             trace_pid=$!
         fi
