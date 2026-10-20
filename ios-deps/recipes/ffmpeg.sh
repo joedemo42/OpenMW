@@ -18,7 +18,7 @@ ffmpeg_build() {  # <simulator|device>
     target_env "$1"
     local flags="-target $TRIPLE -isysroot $SDK_PATH" lib libs=() expected enabled
     local IFS=,
-    # --pkg-config=false: the host's pkg-config only knows Homebrew packages (FIXES #14); configure warns about it
+    # --pkg-config=false: the host's pkg-config would report Homebrew's macOS packages; configure warns about it
     configure_build "$TARGET_DIR/build" "$BUILD_DIR/ffmpeg/src/configure" --prefix="$TARGET_DIR/install" \
         --enable-cross-compile --target-os=darwin --arch=aarch64 --cc="$(xcrun --sdk "$SDK" -f clang)" \
         --extra-cflags="$flags" --extra-ldflags="$flags" --pkg-config=false \

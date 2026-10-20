@@ -16,10 +16,10 @@ openal-soft_build() {  # <simulator|device>
         -DLIBTYPE=STATIC -DALSOFT_REQUIRE_COREAUDIO=ON -DALSOFT_DLOPEN=OFF
         -DALSOFT_UTILS=OFF -DALSOFT_NO_CONFIG_UTIL=ON -DALSOFT_EXAMPLES=OFF -DALSOFT_TESTS=OFF
         -DALSOFT_INSTALL_CONFIG=OFF -DALSOFT_INSTALL_HRTF_DATA=OFF -DALSOFT_INSTALL_AMBDEC_PRESETS=OFF
-        # the host's pkg-config only knows Homebrew packages (FIXES #14)
+        # the host's pkg-config would report Homebrew's macOS packages
         -DPKG_CONFIG_EXECUTABLE= -DCMAKE_DISABLE_FIND_PACKAGE_SDL3=ON
         # the 27 SDKs declare AURenderCallback [[clang::nonblocking]]; 1.25.2's CoreAudio callbacks are not annotated
-        # and OpenAL Soft makes clang's function effect analysis an error (FIXES #20). Analysis only, same code.
+        # and OpenAL Soft adds -Werror=function-effects whenever clang supports it. Skips the analysis only, same code.
         # ponytail: drop once a release annotates the CoreAudio callbacks (upstream 2dc741b54a: playback only)
         -DHAVE_WFUNCTION_EFFECTS=OFF
     )
