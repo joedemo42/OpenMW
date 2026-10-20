@@ -98,3 +98,6 @@ Thumbs.db
 /ios-deps/artifacts/
 /ios/BUILD_NUMBER
 /ios/OpenMW-iOS.xcodeproj/
+
+## iOS port personal build values (ios/build.config.sample)
+/ios/build.config

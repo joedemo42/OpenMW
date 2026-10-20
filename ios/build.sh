@@ -7,15 +7,20 @@ SCRIPT="${0#"$PWD/"}"
 DERIVED="$REPO/DerivedData"
 LOG_DIR="$REPO/log"
 PROJECT="$REPO/ios/OpenMW-iOS.xcodeproj"
-BUNDLE_ID=org.openmw.openmw
 DEFAULT_SIMULATOR="iPad Air 11-inch (M4)"
-REPO_SERVER=http://repo-server.invalid/upload/
+# Personal build values, defaults; ios/build.config overrides them (read_config)
+APP_NAME=OpenMW
+BUNDLE_ID=org.openmw.openmw
+TEAM_ID=
+APP_ICON=ios/OpenMW/AppIcon.png
+REPO_SERVER=
 
 usage() {
     cat <<EOF
 Usage: $SCRIPT <command> [args] [options]
 Target options: --simulator <name|UDID> | --device <name|UDID>  (default: $DEFAULT_SIMULATOR simulator)
 Configuration: --release (optimized, stripped, dSYM) for build, install, run, ipa, upload. default: debug
+Personal values (home-screen name, bundle ID, team, icon, repo server): ios/build.config, see ios/build.config.sample
 
   build   [simulator|device|both]   build app (both: simulator + device of the configuration), increments build
                                     number once. default: simulator
@@ -26,7 +31,7 @@ Configuration: --release (optimized, stripped, dSYM) for build, install, run, ip
           app not installed or installed build != current build -> exit 1
   ipa     [--unsigned]              current device build -> IPA in DerivedData/ipa. no current build -> exit 1
   upload  [--notes <text>|--notes-file <path>]
-          ipa + release notes ("What's New") -> archive/ -> repo server. no current device build -> exit 1
+          ipa + release notes ("What's New") -> archive/ -> REPO_SERVER. no current device build -> exit 1
           --release: dSYM zip next to the IPA in archive/, not uploaded. debug: first notes line [DEBUG BUILD]
   documents zip                     game data payload (./Data -> Data/) -> DerivedData/ipa/Documents.zip
   documents install [target]        copy the payload into the installed app's Documents, no reinstall
@@ -36,6 +41,25 @@ EOF
 }
 
 die() { echo "error: $*" >&2; exit 1; }
+
+# ios/build.config: KEY=value lines (keys as in ios/build.config.sample), read, never sourced. Empty or missing
+# values keep the defaults.
+read_config() {
+    local file="$REPO/ios/build.config" line key
+    [ -f "$file" ] || return 0
+    while IFS= read -r line || [ -n "$line" ]; do
+        case "$line" in
+            ''|'#'*) continue ;;
+            *=*) ;;
+            *) die "ios/build.config: not KEY=value: '$line'" ;;
+        esac
+        key=${line%%=*}
+        case "$key" in
+            APP_NAME|BUNDLE_ID|TEAM_ID|APP_ICON|REPO_SERVER) [ -z "${line#*=}" ] || printf -v "$key" '%s' "${line#*=}" ;;
+            *) die "ios/build.config: unknown key '$key'" ;;
+        esac
+    done < "$file"
+}
 
 version() {
     local part v=()
@@ -70,6 +94,23 @@ ensure_deps() {  # <simulator|device>
 
 generate_project() {
     xcodegen generate --quiet --spec "$REPO/ios/project.yml" --project "$REPO/ios"
+}
+
+# APP_ICON (1024x1024 PNG, relative to the repo or absolute) -> DerivedData/AppIcon.xcassets, the app's asset catalog
+# (ios/project.yml).
+make_icon() {
+    local icon=$APP_ICON catalog="$DERIVED/AppIcon.xcassets" info
+    [ "${icon#/}" != "$icon" ] || icon="$REPO/$icon"
+    info=$(sips -g format -g pixelWidth -g pixelHeight "$icon" 2>/dev/null \
+        | awk '/format:/ {f = $2} /pixelWidth/ {w = $2} /pixelHeight/ {h = $2} END {print f, w "x" h}')
+    [ "$info" = "png 1024x1024" ] || die "APP_ICON must be a 1024x1024 PNG: $APP_ICON"
+    mkdir -p "$catalog/AppIcon.appiconset"
+    [ -f "$catalog/Contents.json" ] || echo '{"info": {"author": "xcode", "version": 1}}' > "$catalog/Contents.json"
+    [ -f "$catalog/AppIcon.appiconset/Contents.json" ] || echo '{"images": [{"filename": "AppIcon.png",' \
+        '"idiom": "universal", "platform": "ios", "size": "1024x1024"}], "info": {"author": "xcode", "version": 1}}' \
+        > "$catalog/AppIcon.appiconset/Contents.json"
+    # copied only when changed: a new file date would recompile the asset catalog
+    cmp -s "$icon" "$catalog/AppIcon.appiconset/AppIcon.png" || cp "$icon" "$catalog/AppIcon.appiconset/AppIcon.png"
 }
 
 # Builds OpenMW's static libraries (DerivedData/openmw/<configuration>-<sdk>/lib) and stages its resources with
@@ -109,15 +150,17 @@ build_openmw() {  # <iphoneos|iphonesimulator>
 # xcodebuild <sdk> [extra args]
 xcbuild() {
     local sdk=$1; shift
+    make_icon
     ensure_deps "$([ "$sdk" = iphoneos ] && echo device || echo simulator)"
     build_openmw "$sdk"
     next_build_number
     generate_project
-    echo "==> build $sdk $CONFIG (version $(version), build $BUILD_NUMBER)"
+    echo "==> build $sdk $CONFIG (version $(version), build $BUILD_NUMBER) as \"$APP_NAME\" ($BUNDLE_ID)"
     xcodebuild -project "$PROJECT" -scheme OpenMW -configuration "$CONFIG" -sdk "$sdk" \
         -derivedDataPath "$DERIVED" -allowProvisioningUpdates -quiet \
         MARKETING_VERSION="$(version)" CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
-        OPENMW_BUILD_DIR="$DERIVED/openmw/$CONFIG-$sdk" "$@"
+        OPENMW_BUILD_DIR="$DERIVED/openmw/$CONFIG-$sdk" \
+        APP_DISPLAY_NAME="$APP_NAME" PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" DEVELOPMENT_TEAM="$TEAM_ID" "$@"
 }
 
 app_path() {  # <simulator|device>
@@ -268,8 +311,10 @@ make_ipa() {  # [--unsigned]
 }
 
 upload() {
+    [ -n "$REPO_SERVER" ] || die "no repo server: set REPO_SERVER in ios/build.config"
     make_ipa
-    local name="Morrowind-$(version)-$BUILD_NUMBER" notes=() code dsym
+    # ponytail: APP_NAME as is in the file name; '/' would break the path, ';' or ',' curl -F (sanitize when needed)
+    local name="$APP_NAME-$(version)-$BUILD_NUMBER" notes=() code dsym
     if [ "$CONFIG" = Debug ]; then
         # first notes line: the repo server cannot tell debug from release builds
         case "$NOTES_OPT" in
@@ -361,6 +406,7 @@ done
 # Xcode configuration, also selects the CMake build type of OpenMW's code (ios-deps: one build for both)
 CONFIG=Debug
 [ -n "$RELEASE" ] && CONFIG=Release
+read_config
 
 allow() {  # <allowed options...>: reject options not valid for this command
     local given=() opt

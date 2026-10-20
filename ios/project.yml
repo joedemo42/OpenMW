@@ -5,7 +5,6 @@ options:
   createIntermediateGroups: true
 settings:
   base:
-    DEVELOPMENT_TEAM: ""
     CODE_SIGN_STYLE: Automatic
     ARCHS: arm64
     CLANG_ENABLE_OBJC_ARC: YES
@@ -15,7 +14,10 @@ targets:
     platform: iOS
     sources:
       - path: OpenMW
-        excludes: ["settings.cfg"]  # staged into OpenMW.app/engine by the resources script
+        # settings.cfg: staged into OpenMW.app/engine by the resources script; AppIcon.png: the default APP_ICON
+        excludes: ["settings.cfg", "AppIcon.png"]
+      # APP_ICON (ios/build.config), written by ios/build.sh
+      - path: ../DerivedData/AppIcon.xcassets
     dependencies:
       - framework: ../ios-deps/artifacts/SDL2.xcframework
         embed: false
@@ -90,7 +92,6 @@ targets:
     settings:
       base:
         PRODUCT_NAME: OpenMW
-        PRODUCT_BUNDLE_IDENTIFIER: org.openmw.openmw
         INFOPLIST_FILE: OpenMW/Info.plist
         GENERATE_INFOPLIST_FILE: NO
         # increased memory limit (automatic signing adds the capability to the App ID)
@@ -105,7 +106,8 @@ targets:
                         "-losg-ffmpeg-videoplayer", "-loics", "-llocal_tinyxml", "-lsmhasher", "$(METALFX_LDFLAGS)"]
         # MetalFX upscaling (apps/openmw/ios/metalfx.mm); the simulator SDK has no MetalFX
         "METALFX_LDFLAGS[sdk=iphoneos*]": ["-framework", "MetalFX"]
-        # overridden by ios/build.sh
+        # overridden by ios/build.sh; PRODUCT_BUNDLE_IDENTIFIER, DEVELOPMENT_TEAM and APP_DISPLAY_NAME (Info.plist)
+        # come only from it (ios/build.config)
         MARKETING_VERSION: "0.0.0"
         CURRENT_PROJECT_VERSION: "0"
         OPENMW_BUILD_DIR: ""

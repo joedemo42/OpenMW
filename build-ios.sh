@@ -17,6 +17,7 @@ Usage: $SCRIPT <command> [args] [options]
 
   app (ios/build.sh), target: --simulator <name|UDID> | --device <name|UDID>
     --release (build/install/run/ipa/upload): optimized, stripped, dSYM. default: debug
+    personal values (name, bundle ID, team, icon, repo server): ios/build.config, see ios/build.config.sample
     build   [simulator|device|both]               default: simulator
     install [target]
     run     [target] [--seconds <1-45>] [--label <name>] [-- <app args>]

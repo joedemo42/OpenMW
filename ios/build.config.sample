@@ -1,0 +1,13 @@
+# Personal build values for ios/build.sh: copy to ios/build.config (git-ignored) and fill in what you need.
+# KEY=value, one per line, no quotes. Empty or missing = default.
+
+# home-screen name. default: OpenMW
+APP_NAME=
+# default: org.openmw.openmw (simulator builds; device builds need an own bundle ID and TEAM_ID)
+BUNDLE_ID=
+# Apple Developer Team ID that signs device builds. default: none (simulator builds only)
+TEAM_ID=
+# app icon, 1024x1024 PNG without transparency, path relative to the repo or absolute. default: ios/OpenMW/AppIcon.png
+APP_ICON=
+# 'upload': URL of a repo server that takes the IPA as multipart POST (fields file, notes). default: none
+REPO_SERVER=

@@ -7,7 +7,6 @@ REPO="$(cd "$(dirname "$0")/.." && pwd)"
 SCRIPT="${0#"$PWD/"}"
 DERIVED="$REPO/DerivedData"
 LOG_DIR="$REPO/log"
-BUNDLE_ID=org.openmw.openmw
 APP="$DERIVED/Build/Products/Release-iphoneos/OpenMW.app"
 STATS_FILE=Library/Caches/openmw-stats.txt  # in the app's data container, not visible in the Files app
 
@@ -205,6 +204,7 @@ run_perf() {
     found=$(plutil -extract CFBundleVersion raw "$APP/Info.plist" 2>/dev/null || true)
     [ -n "$expected" ] && [ "$found" = "$expected" ] \
         || die "no current release device build. run 'ios/build.sh build device --release'"
+    BUNDLE_ID=$(plutil -extract CFBundleIdentifier raw "$APP/Info.plist")
     installed=$(xcrun devicectl device info apps --quiet --device "$TARGET" --bundle-id "$BUNDLE_ID" -j - 2>/dev/null \
         | python3 -c 'import json, sys; print(json.load(sys.stdin)["result"]["apps"][0]["bundleVersion"])' 2>/dev/null) \
         || die "app not installed on device $TARGET. run 'ios/build.sh install --release --device \"$TARGET\"'"
