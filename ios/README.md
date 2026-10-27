@@ -5,7 +5,8 @@ Zink driver on MoltenVK (Vulkan on Metal) and uses SDL2's UIKit backend, so the 
 
 This is an unofficial port: it is not supported by the OpenMW team, so please don't ask about it on the OpenMW
 forums. The app contains no game data: you need your own copy of Morrowind for the PC. OpenMW is licensed under the
-GPLv3 (see [LICENSE](../LICENSE)); the dependencies come with their own licenses.
+GPLv3 (see [LICENSE](../LICENSE)); the dependencies come with their own licenses, whose notices the app carries in its
+`licenses` folder (see [licenses/README.txt](licenses/README.txt)).
 
 ## Requirements
 
@@ -98,11 +99,36 @@ folder out of git, e.g. with a `/Data/` line in `.git/info/exclude`.
 - LuaJIT runs as an interpreter only (iOS does not allow code generation at runtime).
 - The ini import assumes Windows-1252 game data (English, German, French, ...); other encodings are untested.
 
+## Binary releases
+
+An IPA you pass on to others must come with its source code (GPLv3); FFmpeg, OpenAL Soft and parts of OpenSceneGraph
+are licensed under the LGPL, so their source must be available from the same place as the IPA.
+
+1. Commit and tag the state you release and build it from a checkout without local changes (`git status --short`
+   prints nothing), so the revision in the main menu is the tagged commit:
+
+   ```
+   ./build-ios.sh build device --release
+   ./build-ios.sh ipa --release --unsigned
+   ```
+
+   The unsigned IPA (`DerivedData/ipa/OpenMW-unsigned.ipa`) is for others to sign with their own team. A signed one
+   contains your provisioning profile (team, certificate name, registered device IDs) and installs only on those
+   devices. Your `BUNDLE_ID` and `APP_NAME` stay in the IPA's Info.plist.
+2. Publish the IPA together with the source archives of FFmpeg, OpenAL Soft and OpenSceneGraph from
+   `ios-deps/source/ffmpeg`, `ios-deps/source/openal-soft` and `ios-deps/source/osg`, and name the tag as the
+   release's source. The build scripts fetch the other dependencies from the pinned URLs in `ios-deps/recipes/`.
+
+With the source and these scripts, anyone can rebuild the app with modified versions of these libraries; installing
+it needs their own signing. The app carries the license notices of OpenMW and its libraries in its `licenses` folder.
+The App Store and TestFlight are not covered here: Apple's terms are widely considered incompatible with the GPL.
+
 ## Repository layout
 
 - `build-ios.sh`: entry point for all commands.
-- `ios/`: the app host (`project.yml` for xcodegen, `OpenMW/` with Info.plist, entitlements and icon), `build.sh`
-  (app build, install, run, IPA) and `perf.sh` (profiling on a device).
+- `ios/`: the app host (`project.yml` for xcodegen, `OpenMW/` with Info.plist, entitlements and icon, `licenses/` with
+  the index of the app's license notices), `build.sh` (app build, install, run, IPA) and `perf.sh` (profiling on a
+  device).
 - `ios-deps/`: `build-deps.sh` builds the dependencies as xcframeworks from the recipes in `recipes/` and the patches
   in `patches/`.
 - iOS code in the engine: `apps/openmw/ios/` (first launch, platform integration, MetalFX) and
