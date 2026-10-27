@@ -1,5 +1,9 @@
 # MoltenVK: Vulkan on Metal, static library for Mesa/Zink.
 DEP_ARTIFACTS=(MoltenVK)
+# MoltenVK and what libMoltenVK.a contains: SPIRV-Cross, SPIRV-Tools (+ SPIRV-Headers), cereal, Vulkan-Headers
+DEP_LICENSES=(LICENSE External/SPIRV-Cross/LICENSE External/SPIRV-Cross/LICENSES/LicenseRef-KhronosFreeUse.txt
+    External/SPIRV-Tools/LICENSE External/SPIRV-Tools/external/spirv-headers/LICENSE External/cereal/LICENSE
+    External/Vulkan-Headers/LICENSE.md)
 
 moltenvk_download() {
     fetch_git https://github.com/KhronosGroup/MoltenVK.git v1.4.2 db66022459ffb663aa2b50f6b018bc2e124f5edf

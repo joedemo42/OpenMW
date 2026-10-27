@@ -2,6 +2,8 @@
 # (double precision, Bullet 2 multithreading, no Bullet 3/extras/demos/tests). OpenMW links BulletCollision and
 # LinearMath, merged into libBullet.a; headers in include/bullet (as a desktop install).
 DEP_ARTIFACTS=(Bullet)
+# Gimpact (in BulletCollision) is LGPL, BSD or zlib: used under zlib
+DEP_LICENSES=(LICENSE.txt)
 BULLET_VERSION=3.17
 
 bullet_download() {

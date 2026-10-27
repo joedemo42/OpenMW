@@ -1,6 +1,7 @@
 # yaml-cpp: OpenMW's settings, shader and Lua config files. The commit OpenMW's extern/CMakeLists.txt pins (0.8.0 +
 # CMake 4 fix). Static, no tools/tests/contrib (OpenMW uses none of them).
 DEP_ARTIFACTS=(yaml-cpp)
+DEP_LICENSES=(LICENSE)
 YAML_CPP_COMMIT=c2680200486572baf8221ba052ef50b58ecd816e
 
 yaml-cpp_download() {

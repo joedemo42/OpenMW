@@ -3,6 +3,10 @@
 # into libFFmpeg.a. No external libraries (autodetect off, which also drops pthreads: enabled again), Neon assembly,
 # LGPL. ponytail: formats of mods (Ogg Vorbis, 8-bit PCM, ...) are one more entry below each.
 DEP_ARTIFACTS=(FFmpeg)
+DEP_LICENSES=(LICENSE.md COPYING.LGPLv2.1)
+# IJG, MIT (musl) and ISC code of the DSP functions
+DEP_NOTICES=(libavcodec/jrevdct.c libavcodec/jfdctfst.c libavcodec/jfdctint_template.c libavutil/avsscanf.c
+    libavcodec/faandct.c)
 FFMPEG_VERSION=9.0.2
 FFMPEG_DECODERS=(bink binkaudio_dct binkaudio_rdft mp3float pcm_s16le)
 FFMPEG_DEMUXERS=(bink mp3 wav)

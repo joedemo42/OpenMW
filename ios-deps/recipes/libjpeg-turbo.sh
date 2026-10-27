@@ -1,5 +1,6 @@
 # libjpeg-turbo: JPEG images for OSG's jpeg plugin. Static libjpeg API only (no TurboJPEG, no tools), Arm Neon SIMD.
 DEP_ARTIFACTS=(libjpeg)
+DEP_LICENSES=(LICENSE.md README.ijg)
 LIBJPEG_TURBO_VERSION=3.2.0
 
 libjpeg-turbo_download() {

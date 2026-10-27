@@ -1,5 +1,6 @@
 # libpng: PNG images for OSG's png plugin. Static, Arm Neon filters, zlib from the iOS SDK.
 DEP_ARTIFACTS=(libpng)
+DEP_LICENSES=(LICENSE)
 LIBPNG_VERSION=1.6.58
 
 libpng_download() {

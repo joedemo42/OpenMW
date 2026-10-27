@@ -1,6 +1,10 @@
 # FreeType: TrueType/OpenType fonts for OSG's freetype plugin (and MyGUI). Static, zlib from the iOS SDK;
 # bzip2, PNG (colour bitmap glyphs), HarfBuzz and Brotli (WOFF2) are not needed.
 DEP_ARTIFACTS=(freetype)
+# FreeType License (its credit line with this version's year: ios/licenses/README.txt); BDF/PCF drivers and
+# the HarfBuzz-derived autofit code under MIT-style licenses
+DEP_LICENSES=(LICENSE.TXT docs/FTL.TXT src/bdf/README src/pcf/README)
+DEP_NOTICES=(src/pcf/pcfutil.c src/autofit/ft-hb-ft.c)
 FREETYPE_VERSION=2.14.3
 
 freetype_download() {

@@ -3,6 +3,8 @@
 # One recipe per dependency in recipes/<dep>.sh, providing:
 #   DEP_REQUIRES=(<deps>)   prerequisites (must appear earlier in DEPS)
 #   DEP_ARTIFACTS=(<names>) xcframeworks it produces ($ARTIFACTS_DIR/<name>.xcframework)
+#   DEP_LICENSES=(<files>)  license files of the code built into the artifacts (relative to $BUILD_DIR/<dep>/src)
+#   DEP_NOTICES=(<files>)   source files whose leading comment is a license notice not in DEP_LICENSES
 #   <dep>_download          fetch pinned source into $SOURCE_DIR/<dep>
 #   <dep>_build <target>    build one target (simulator|device) from $BUILD_DIR/<dep>
 #   <dep>_xcframework       create $ARTIFACTS_DIR/<name>.xcframework(s) from the built targets
@@ -139,6 +141,27 @@ xcframework() {  # <name> <lib path> [<headers path>]   (paths relative to build
     echo "==> $name.xcframework ok (${TARGETS[*]})"
 }
 
+# Copies DEP_LICENSES and the leading comments of DEP_NOTICES (as <file>.txt) from build/<dep>/src to
+# artifacts/licenses/<dep>/, same relative paths. The app bundles them (ios/project.yml).
+stage_licenses() {
+    local src="$BUILD_DIR/$DEP/src" out="$ARTIFACTS_DIR/licenses/$DEP" f
+    [ ${#DEP_LICENSES[@]} -gt 0 ] || die "$DEP: no DEP_LICENSES"
+    rm -rf "$out"
+    for f in "${DEP_LICENSES[@]}"; do
+        [ -f "$src/$f" ] || die "$DEP: license file $f not found"
+        mkdir -p "$out/$(dirname "$f")" && cp "$src/$f" "$out/$f"
+    done
+    for f in "${DEP_NOTICES[@]+"${DEP_NOTICES[@]}"}"; do
+        [ -f "$src/$f" ] || die "$DEP: notice file $f not found"
+        mkdir -p "$out/$(dirname "$f")"
+        # comment lines (//, /* ... */, blank lines between them) up to the first code line
+        awk 'inblock || /^[[:space:]]*(\/\/|\/\*|$)/ {print; if (/\/\*/) inblock = 1; if (/\*\//) inblock = 0; next}
+            {exit}' "$src/$f" > "$out/$f.txt"
+        grep -q -i -E 'licen[cs]e|permission|redistribution|public domain' "$out/$f.txt" \
+            || die "$DEP: no license notice atop $f"
+    done
+}
+
 # Merged static archives must not define a strong symbol twice: OpenMW links with -all_load on Apple.
 # strong_duplicates <lib> <drop|symbols>: removable duplicate members, or symbols defined more than once
 strong_duplicates() {
@@ -164,6 +187,8 @@ load_recipe() {
     DEP=$1
     DEP_REQUIRES=()
     DEP_ARTIFACTS=()
+    DEP_LICENSES=()
+    DEP_NOTICES=()
     # shellcheck source=/dev/null
     source "$DEPS_DIR/recipes/$1.sh"
 }
@@ -222,6 +247,7 @@ build_dep() {
     done
     echo "==> xcframework $dep"
     "${dep}_xcframework"
+    stage_licenses
     BUILT+=("$dep")
 }
 
@@ -235,7 +261,7 @@ cmd_clean() {
     for dep in ${SELECTED[@]+"${SELECTED[@]}"}; do
         load_recipe "$dep"
         echo "==> clean $dep"
-        rm -rf "${BUILD_DIR:?}/$dep"
+        rm -rf "${BUILD_DIR:?}/$dep" "${ARTIFACTS_DIR:?}/licenses/$dep"
         for name in "${DEP_ARTIFACTS[@]+"${DEP_ARTIFACTS[@]}"}"; do
             rm -rf "${ARTIFACTS_DIR:?}/$name.xcframework"
         done

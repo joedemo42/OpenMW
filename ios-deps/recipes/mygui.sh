@@ -3,6 +3,7 @@
 # this directory; OpenMW links libMyGUIEngine.a only.
 DEP_REQUIRES=(freetype)
 DEP_ARTIFACTS=(MyGUI)
+DEP_LICENSES=(COPYING.MIT)
 MYGUI_VERSION=3.4.3
 
 mygui_download() {

@@ -2,6 +2,7 @@
 # (merged into libboost.a) and uses geometry and any header-only. Iostreams only for its stream templates,
 # so no compression filters (zlib/bzip2/lzma/zstd).
 DEP_ARTIFACTS=(Boost)
+DEP_LICENSES=(LICENSE_1_0.txt)
 BOOST_VERSION=1.92.0
 
 boost_download() {

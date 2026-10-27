@@ -2,6 +2,7 @@
 # JIT on iOS itself), static, default options (Lua 5.1 semantics, as distribution packages). LuaJIT builds in its
 # source tree and runs host tools (minilua, buildvm) during the build: one source copy per target.
 DEP_ARTIFACTS=(LuaJIT)
+DEP_LICENSES=(COPYRIGHT)
 LUAJIT_COMMIT=c6ffc141a8762b41703f9287d63d93622a13dd8f
 
 luajit_download() {

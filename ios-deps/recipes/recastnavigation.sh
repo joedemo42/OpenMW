@@ -2,6 +2,7 @@
 # with its settings (static, no demo/tests/examples). OpenMW links Recast, Detour and DebugUtils, merged into
 # libRecastNavigation.a; headers in include/recastnavigation (as a desktop install).
 DEP_ARTIFACTS=(RecastNavigation)
+DEP_LICENSES=(License.txt)
 RECASTNAVIGATION_COMMIT=03259f3287ff8330f0d66fcd98d022edddffaa97
 
 recastnavigation_download() {

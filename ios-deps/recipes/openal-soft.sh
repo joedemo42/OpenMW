@@ -2,6 +2,8 @@
 # AL_SOFT_events, EFX, HRTF). Static, CoreAudio backend only (RemoteIO on iOS), default HRTF data embedded; no
 # utilities, examples, config tool or installed data files.
 DEP_ARTIFACTS=(OpenAL)
+DEP_LICENSES=(COPYING BSD-3Clause LICENSE-pffft fmt-11.2.0/LICENSE gsl/LICENSE)
+DEP_NOTICES=(core/bs2b.h common/filesystem.h)
 OPENAL_SOFT_VERSION=1.25.2
 
 openal-soft_download() {

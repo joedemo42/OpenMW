@@ -2,6 +2,7 @@
 # libicu.a, data filtered with OpenMW's extern/icufilters.json. ICU runs its own tools to build the data, so a
 # cross build needs a host build first (build/icu/host), as in OpenMW's Android CI.
 DEP_ARTIFACTS=(ICU)
+DEP_LICENSES=(LICENSE)
 ICU_VERSION=78.3
 # OpenMW's extern/CMakeLists.txt options
 ICU_OPTIONS=(--enable-static --disable-shared --disable-tests --disable-samples --disable-icuio --disable-extras)

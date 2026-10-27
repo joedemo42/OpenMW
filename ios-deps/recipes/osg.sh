@@ -3,6 +3,10 @@
 # plugins OpenMW uses are merged into libOpenSceneGraph.a, shipped with the headers of all OSG libraries.
 DEP_REQUIRES=(mesa libpng libjpeg-turbo freetype)
 DEP_ARTIFACTS=(OpenSceneGraph)
+# OSGPL (LGPL 2.1 with exceptions, both in LICENSE.txt); GLU tessellator (SGI-B), MIT and plain LGPL-2.1+ files
+DEP_LICENSES=(LICENSE.txt)
+DEP_NOTICES=(src/osg/glu/libtess/tess.cpp src/osgUtil/PerlinNoise.cpp src/osgViewer/Keystone.cpp
+    src/osgPlugins/bmp/ReaderWriterBMP.cpp include/osgAnimation/Vec3Packed)
 OSG_COMMIT=01cc2b585c8456a4ff843066b7e1a8715558289f
 # OpenMW's USED_OSG_COMPONENTS (+ OpenThreads) and USED_OSG_PLUGINS (+ serializers_osg), without dae (Collada)
 OSG_LIBRARIES=(OpenThreads osg osgDB osgUtil osgGA osgText osgViewer osgAnimation osgFX osgParticle osgShadow osgSim)

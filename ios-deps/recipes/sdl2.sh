@@ -1,5 +1,8 @@
 # SDL2: window, input, events. Patched for the UIScene life cycle (required with the iOS 27 SDK).
 DEP_ARTIFACTS=(SDL2 SDL2main)
+# zlib; yuv2rgb (BSD), hidapi (GPL, BSD or its own: used under BSD), libm (Sun), X11 keysym table (MIT)
+DEP_LICENSES=(LICENSE.txt src/video/yuv2rgb/LICENSE src/hidapi/LICENSE.txt src/hidapi/LICENSE-bsd.txt)
+DEP_NOTICES=(src/libm/math_private.h src/events/imKStoUCS.c)
 
 sdl2_download() {
     fetch https://github.com/libsdl-org/SDL/releases/download/release-2.32.10/SDL2-2.32.10.tar.gz \

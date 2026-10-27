@@ -1,5 +1,6 @@
 # LZ4: compressed BSA archives (v105) and the navmesh disk cache. Static library only, no CLI.
 DEP_ARTIFACTS=(LZ4)
+DEP_LICENSES=(lib/LICENSE)  # the library's (the GPL of the top-level LICENSE is for the CLI)
 LZ4_VERSION=1.10.0
 
 lz4_download() {

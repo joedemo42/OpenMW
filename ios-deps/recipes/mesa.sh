@@ -3,6 +3,10 @@
 # (objects + internal archives) of libEGL and libgallium plus libglapi_bridge (public gl* entry points).
 DEP_REQUIRES=(moltenvk)
 DEP_ARTIFACTS=(Mesa)
+# MIT and the licenses of single files in libMesa.a (licenses/ also has texts for code that is not built)
+DEP_LICENSES=(docs/license.rst licenses/MIT licenses/Apache-2.0 licenses/BSL-1.0)
+DEP_NOTICES=(src/util/softfloat.h src/util/xxhash.h src/gallium/auxiliary/postprocess/pp_mlaa.h
+    src/loader/loader_dri_helper.h)
 # 25.1.x: latest release working with MoltenVK. From 25.2 on, zink hard-requires robustness2
 # nullDescriptor, which MoltenVK does not provide (25.1 still falls back to dummy descriptors).
 MESA_VERSION=25.1.9
