@@ -89,6 +89,20 @@ targets:
           rsync -a --delete "$OPENMW_BUILD_DIR/resources" "$OPENMW_BUILD_DIR/openmw.cfg" \
               "$OPENMW_BUILD_DIR/defaults.bin" "$OPENMW_BUILD_DIR/gamecontrollerdb.txt" "$SRCROOT/OpenMW/settings.cfg" \
               "$dest/"
+      # license notices: the dependencies' (staged by ios-deps/build-deps.sh), OpenMW's license and authors, and the
+      # index with the notices of third-party code in OpenMW's tree -> OpenMW.app/licenses
+      - name: License notices
+        basedOnDependencyAnalysis: false
+        outputFiles: ["$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/licenses"]
+        script: |
+          set -e
+          deps="$SRCROOT/../ios-deps/artifacts/licenses"
+          dest="$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/licenses"
+          [ -d "$deps" ] || { echo "error: $deps missing (ios-deps/build-deps.sh build all)"; exit 1; }
+          mkdir -p "$dest/OpenMW"
+          rsync -a --delete --exclude /README.txt --exclude /OpenMW/ "$deps/" "$dest/"
+          rsync -a "$SRCROOT/licenses/README.txt" "$dest/"
+          rsync -a "$SRCROOT/../LICENSE" "$SRCROOT/../AUTHORS.md" "$dest/OpenMW/"
     settings:
       base:
         PRODUCT_NAME: OpenMW

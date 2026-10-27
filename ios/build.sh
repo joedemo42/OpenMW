@@ -79,17 +79,20 @@ next_build_number() {
     echo "$BUILD_NUMBER" > "$file"
 }
 
-# Builds the dependency xcframeworks if a slice for <target> is missing (incremental).
+# Builds the dependency xcframeworks if a slice for <target> or a dependency's license notices are missing
+# (incremental).
 ensure_deps() {  # <simulator|device>
-    local slice=ios-arm64 name
+    local slice=ios-arm64 name recipe missing=
     [ "$1" = simulator ] && slice=ios-arm64-simulator
     # the xcframeworks the app links (ios/project.yml)
     for name in $(sed -n 's|.*ios-deps/artifacts/\(.*\)\.xcframework$|\1|p' "$REPO/ios/project.yml"); do
-        if [ ! -d "$REPO/ios-deps/artifacts/$name.xcframework/$slice" ]; then
-            "$REPO/ios-deps/build-deps.sh" build all "$1"
-            return
-        fi
+        [ -d "$REPO/ios-deps/artifacts/$name.xcframework/$slice" ] || missing=1
     done
+    # the notices the app bundles (build-deps.sh stage_licenses)
+    for recipe in "$REPO"/ios-deps/recipes/*.sh; do
+        [ -d "$REPO/ios-deps/artifacts/licenses/$(basename "$recipe" .sh)" ] || missing=1
+    done
+    [ -z "$missing" ] || "$REPO/ios-deps/build-deps.sh" build all "$1"
 }
 
 generate_project() {
