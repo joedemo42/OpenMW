@@ -124,12 +124,15 @@ build_openmw() {  # <iphoneos|iphonesimulator>
     [ "$sdk" = iphoneos ] && target=device
     # release: upstream's default build type (optimized)
     [ "$CONFIG" = Release ] && type=RelWithDebInfo
+    # repository-relative paths in __FILE__ and lambda type names (no build paths in the app binary; the debug info
+    # keeps absolute paths)
+    local map="-fmacro-prefix-map=$REPO/="
     args=(-G Ninja --toolchain "$REPO/ios/openmw-toolchain.cmake" -DCMAKE_OSX_SYSROOT="$sdk"
         -DCMAKE_BUILD_TYPE=$type -DCMAKE_ARCHIVE_OUTPUT_DIRECTORY="$dir/lib"
         # debug info: debug type info only where it is defined; release without -g (static libraries reach the app's
         # dSYM as symbol table only)
-        -DCMAKE_C_FLAGS_DEBUG="-g -fno-standalone-debug" -DCMAKE_CXX_FLAGS_DEBUG="-g -fno-standalone-debug"
-        -DCMAKE_C_FLAGS_RELWITHDEBINFO="-O2 -DNDEBUG" -DCMAKE_CXX_FLAGS_RELWITHDEBINFO="-O2 -DNDEBUG"
+        -DCMAKE_C_FLAGS_DEBUG="-g -fno-standalone-debug $map" -DCMAKE_CXX_FLAGS_DEBUG="-g -fno-standalone-debug $map"
+        -DCMAKE_C_FLAGS_RELWITHDEBINFO="-O2 -DNDEBUG $map" -DCMAKE_CXX_FLAGS_RELWITHDEBINFO="-O2 -DNDEBUG $map"
         # the game only: no launcher, editor, wizard, tools
         -DBUILD_LAUNCHER=OFF -DBUILD_WIZARD=OFF -DBUILD_MWINIIMPORTER=OFF -DBUILD_OPENCS=OFF -DBUILD_ESSIMPORTER=OFF
         -DBUILD_BSATOOL=OFF -DBUILD_ESMTOOL=OFF -DBUILD_NIFTEST=OFF -DBUILD_NAVMESHTOOL=OFF -DBUILD_BULLETOBJECTTOOL=OFF

@@ -94,12 +94,15 @@ prepare_source() {  # <tarball name | ->  ('-' copies the source tree)
 # into build/<dep>/<target>/install (static, Release).
 cmake_build() {  # <source dir> [cmake args...]
     local src=$1 fresh=(); shift
+    # CMake's Release flags + repository-relative __FILE__ paths (no build paths in the app binary)
+    local release="-O3 -DNDEBUG -fmacro-prefix-map=$(dirname "$DEPS_DIR")/="
     # the cache keeps paths into the versioned SDK (compiler checks, found libraries such as ZLIB): configure from
     # scratch after an Xcode update
     [ "$(cat "$TARGET_DIR/build/.sdk" 2>/dev/null)" = "$SDK_PATH" ] || fresh=(--fresh)
     cmake ${fresh[@]+"${fresh[@]}"} -S "$src" -B "$TARGET_DIR/build" -G Ninja -Wno-dev \
         -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_SYSROOT="$SDK" -DCMAKE_OSX_ARCHITECTURES=arm64 \
         -DCMAKE_OSX_DEPLOYMENT_TARGET="$MIN_IOS" -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF \
+        -DCMAKE_C_FLAGS_RELEASE="$release" -DCMAKE_CXX_FLAGS_RELEASE="$release" \
         -DCMAKE_INSTALL_PREFIX="$TARGET_DIR/install" "$@"
     echo "$SDK_PATH" > "$TARGET_DIR/build/.sdk"
     cmake --build "$TARGET_DIR/build" -j "$JOBS"
