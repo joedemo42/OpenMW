@@ -91,11 +91,15 @@ prepare_source() {  # <tarball name | ->  ('-' copies the source tree)
 # Configures, builds and installs a CMake project for the current target (after target_env)
 # into build/<dep>/<target>/install (static, Release).
 cmake_build() {  # <source dir> [cmake args...]
-    local src=$1; shift
-    cmake -S "$src" -B "$TARGET_DIR/build" -G Ninja -Wno-dev \
+    local src=$1 fresh=(); shift
+    # the cache keeps paths into the versioned SDK (compiler checks, found libraries such as ZLIB): configure from
+    # scratch after an Xcode update
+    [ "$(cat "$TARGET_DIR/build/.sdk" 2>/dev/null)" = "$SDK_PATH" ] || fresh=(--fresh)
+    cmake ${fresh[@]+"${fresh[@]}"} -S "$src" -B "$TARGET_DIR/build" -G Ninja -Wno-dev \
         -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_SYSROOT="$SDK" -DCMAKE_OSX_ARCHITECTURES=arm64 \
         -DCMAKE_OSX_DEPLOYMENT_TARGET="$MIN_IOS" -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF \
         -DCMAKE_INSTALL_PREFIX="$TARGET_DIR/install" "$@"
+    echo "$SDK_PATH" > "$TARGET_DIR/build/.sdk"
     cmake --build "$TARGET_DIR/build" -j "$JOBS"
     cmake --install "$TARGET_DIR/build" > /dev/null
 }
