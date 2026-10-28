@@ -72,6 +72,9 @@ can also be built on their own with `./build-ios.sh deps build all`. The depende
 3. Launch the app again. It imports `Morrowind.ini` once (content files, archives, game settings) into
    `Config/openmw.cfg` and starts the game.
 
+If game files are missing at launch, `missing.log` in the app's documents lists where each one is expected, e.g.
+`./Data/Morrowind.bsa`. It is removed again at the next launch.
+
 The app's documents also hold `Saves/`, `Screenshots/`, `Logs/openmw.log` (attach it to bug reports) and
 `Config/settings.cfg`. To import the ini again, delete `Config/openmw.cfg` and relaunch. There is no launcher on iOS:
 add mods with `data=` and `content=` lines in `Config/openmw.cfg` (paths relative to `Config/`, e.g.

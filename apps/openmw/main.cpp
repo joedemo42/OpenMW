@@ -130,6 +130,14 @@ bool parseOptions(int argc, char** argv, OMW::Engine& engine, Files::Configurati
         }
     }
 
+#if defined(__APPLE__) && TARGET_OS_IPHONE
+    // all of them, where the engine looks (Engine::setDataDirs adds resources/vfs); it stops at the first missing one
+    Files::PathContainer gameFileDirs = dataDirs;
+    gameFileDirs.push_back(variables["resources"].as<Files::MaybeQuotedPath>() / "vfs");
+    OMW::reportMissingGameFiles(cfgMgr.getUserConfigPath(), gameFileDirs, archives);
+    OMW::reportMissingGameFiles(cfgMgr.getUserConfigPath(), gameFileDirs, content);
+#endif
+
     for (auto& file : content)
     {
         engine.addContentFile(file);
