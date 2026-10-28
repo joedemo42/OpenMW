@@ -102,7 +102,7 @@ folder out of git, e.g. with a `/Data/` line in `.git/info/exclude`.
 ## Binary releases
 
 An IPA you pass on to others must come with its source code (GPLv3); FFmpeg, OpenAL Soft and parts of OpenSceneGraph
-are licensed under the LGPL, so their source must be available from the same place as the IPA.
+are licensed under the LGPL, so the release must also say where their source is.
 
 1. Commit and tag the state you release and build it from a checkout without local changes (`git status --short`
    prints nothing), so the revision in the main menu is the tagged commit:
@@ -115,9 +115,10 @@ are licensed under the LGPL, so their source must be available from the same pla
    The unsigned IPA (`DerivedData/ipa/OpenMW-unsigned.ipa`) is for others to sign with their own team. A signed one
    contains your provisioning profile (team, certificate name, registered device IDs) and installs only on those
    devices. Your `BUNDLE_ID` and `APP_NAME` stay in the IPA's Info.plist.
-2. Publish the IPA together with the source archives of FFmpeg, OpenAL Soft and OpenSceneGraph from
-   `ios-deps/source/ffmpeg`, `ios-deps/source/openal-soft` and `ios-deps/source/osg`, and name the tag as the
-   release's source. The build scripts fetch the other dependencies from the pinned URLs in `ios-deps/recipes/`.
+2. Publish the IPA, name the tag as the release's source and link the source archives of FFmpeg, OpenAL Soft and
+   OpenSceneGraph: their pinned download URLs are in `ios-deps/recipes/`, the archives the build used in
+   `ios-deps/source/`. Give each link the archive's SHA-256, so anyone can check it is the source the app was built
+   from. The build scripts fetch the other dependencies from the pinned URLs in `ios-deps/recipes/` as well.
 
 With the source and these scripts, anyone can rebuild the app with modified versions of these libraries; installing
 it needs their own signing. The app carries the license notices of OpenMW and its libraries in its `licenses` folder.
