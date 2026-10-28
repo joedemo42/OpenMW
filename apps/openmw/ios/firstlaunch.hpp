@@ -9,10 +9,11 @@
 
 namespace OMW
 {
-    /// iOS has no launcher or wizard: without <configDir>/openmw.cfg, imports <configDir>/Morrowind.ini with
-    /// OpenMW's ini importer, the game data being in <configDir>/../Data (an ini only there is moved first).
-    /// Removes the missing.log of the last launch; missing ini and game files are reported to a new one.
-    /// \return false if there is no openmw.cfg and none could be imported; the user was told what to copy where.
+    /// iOS has no launcher: without <configDir>/openmw.cfg, or when the Settings app asks for it, the setup assistant
+    /// (ios/OpenMW/SetupAssistant.swift, the wizard's part) checks the game data in <configDir>/../Data, asks for the
+    /// language and imports <configDir>/Morrowind.ini (an ini only in Data is moved first) with OpenMW's ini importer.
+    /// Removes the missing.log of the last launch; the game files an import misses go into a new one.
+    /// \return false if the setup assistant could not be shown
     bool ensureUserConfig(const std::filesystem::path& configDir);
 
     /// Each of \a files not in \a dirs (looked up as the engine does) goes into <configDir>/../missing.log as the

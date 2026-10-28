@@ -63,20 +63,25 @@ can also be built on their own with `./build-ios.sh deps build all`. The depende
 
 ## Game data
 
-1. Install the app and launch it. After a one-time notice that this is an unofficial port, it shows "Game files
-   needed" and creates the folders `Config` and `Data` in its documents: Files app > On My iPad > OpenMW (or the
+1. Install the app and launch it. After a one-time notice that this is an unofficial port, the setup assistant opens
+   and creates the folders `Config` and `Data` in the app's documents: Files app > On My iPad > OpenMW (or the
    `APP_NAME` you chose), or in Finder on a Mac: the device > Files.
 2. From your PC installation of Morrowind, copy the contents of the `Data Files` folder into `Data` (keep the folder
-   structure: `Morrowind.esm`, `Morrowind.bsa`, `Meshes/`, `Textures/`, ...) and `Morrowind.ini` into `Config`. An
-   ini copied into `Data` along with the game files is moved to `Config` by the app.
-3. Launch the app again. It imports `Morrowind.ini` once (content files, archives, game settings) into
-   `Config/openmw.cfg` and starts the game.
+   structure: `Morrowind.esm`, `Morrowind.bsa`, `Meshes/`, `Textures/`, ...) and `Morrowind.ini` into `Config` or,
+   along with the game files, into `Data` (the app moves it to `Config`).
+3. Back in the assistant, the Game Data page shows Morrowind.ini and Morrowind, Tribunal and Bloodmoon as found
+   (Check Again after a copy from the Finder). Choose the language of your game, tap Import: the assistant imports
+   `Morrowind.ini` (content files, archives, game settings) into `Config/openmw.cfg`, and Play starts the game.
+
+Settings > Apps > OpenMW > "Set Up Game Data at Next Launch" opens the assistant again, e.g. to change the language
+or to import the ini again: the import updates `Config/openmw.cfg` like OpenMW's wizard (your own `data=` lines stay,
+the content files are those of the ini).
 
 If game files are missing at launch, `missing.log` in the app's documents lists where each one is expected, e.g.
 `./Data/Morrowind.bsa`. It is removed again at the next launch.
 
 The app's documents also hold `Saves/`, `Screenshots/`, `Logs/openmw.log` (attach it to bug reports) and
-`Config/settings.cfg`. To import the ini again, delete `Config/openmw.cfg` and relaunch. There is no launcher on iOS:
+`Config/settings.cfg`. There is no launcher on iOS:
 add mods with `data=` and `content=` lines in `Config/openmw.cfg` (paths relative to `Config/`, e.g.
 `data="../Mods/MyMod"`).
 
@@ -98,9 +103,10 @@ folder out of git, e.g. with a `/Data/` line in `.git/info/exclude`.
 - Each frame is copied into a Metal layer for display, which adds one frame of latency.
 - The app builds for the iOS Simulator but exits a few seconds after launch there: the Simulator's GPU lacks features
   MoltenVK needs. Use a device.
-- No launcher, installation wizard, editor (OpenMW-CS) or command-line tools.
+- No launcher, editor (OpenMW-CS) or command-line tools. The setup assistant covers the installation wizard's import of
+  an existing installation, not the installation from the retail CD.
 - LuaJIT runs as an interpreter only (iOS does not allow code generation at runtime).
-- The ini import assumes Windows-1252 game data (English, German, French, ...); other encodings are untested.
+- Only English game data was tested; the Polish (Windows-1250) and Russian (Windows-1251) encodings are untested.
 
 ## Binary releases
 
@@ -130,9 +136,9 @@ The App Store and TestFlight are not covered here: Apple's terms are widely cons
 ## Repository layout
 
 - `build-ios.sh`: entry point for all commands.
-- `ios/`: the app host (`project.yml` for xcodegen, `OpenMW/` with Info.plist, entitlements and icon, `licenses/` with
-  the index of the app's license notices), `build.sh` (app build, install, run, IPA) and `perf.sh` (profiling on a
-  device).
+- `ios/`: the app host (`project.yml` for xcodegen, `OpenMW/` with Info.plist, entitlements, icon, the setup assistant
+  (`SetupAssistant.swift`) and its Settings switch, `licenses/` with the index of the app's license notices),
+  `build.sh` (app build, install, run, IPA) and `perf.sh` (profiling on a device).
 - `ios-deps/`: `build-deps.sh` builds the dependencies as xcframeworks from the recipes in `recipes/` and the patches
   in `patches/`.
 - iOS code in the engine: `apps/openmw/ios/` (first launch, platform integration, MetalFX) and

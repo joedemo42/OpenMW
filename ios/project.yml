@@ -106,6 +106,9 @@ targets:
     settings:
       base:
         PRODUCT_NAME: OpenMW
+        # the setup assistant (OpenMW/SetupAssistant.swift); Swift 6 puts #fileID (module/file), not paths, into
+        # the binary
+        SWIFT_VERSION: "6.0"
         INFOPLIST_FILE: OpenMW/Info.plist
         GENERATE_INFOPLIST_FILE: NO
         # increased memory limit (automatic signing adds the capability to the App ID)

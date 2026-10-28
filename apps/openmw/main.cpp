@@ -238,11 +238,11 @@ int runApplication(int argc, char* argv[])
     osg::setNotifyHandler(new OSGLogHandler());
     Files::ConfigurationManager cfgMgr;
 #if defined(__APPLE__) && TARGET_OS_IPHONE
-    // before the platform setup: its touch controls would show up over the alert
+    // before the platform setup: its touch controls would show up over the alert and the setup assistant
     OMW::showUnofficialPortNotice();
-    OMW::initIosPlatform();
     if (!OMW::ensureUserConfig(cfgMgr.getUserConfigPath()))
         return 0;
+    OMW::initIosPlatform();
 #endif
     std::unique_ptr<OMW::Engine> engine = std::make_unique<OMW::Engine>(cfgMgr);
 
