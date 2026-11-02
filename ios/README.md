@@ -66,12 +66,18 @@ can also be built on their own with `./build-ios.sh deps build all`. The depende
 1. Install the app and launch it. After a one-time notice that this is an unofficial port, the setup assistant opens
    and creates the folders `Config` and `Data` in the app's documents: Files app > On My iPad > OpenMW (or the
    `APP_NAME` you chose), or in Finder on a Mac: the device > Files.
-2. From your PC installation of Morrowind, copy the contents of the `Data Files` folder into `Data` (keep the folder
-   structure: `Morrowind.esm`, `Morrowind.bsa`, `Meshes/`, `Textures/`, ...) and `Morrowind.ini` into `Config` or,
-   along with the game files, into `Data` (the app moves it to `Config`).
-3. Back in the assistant, the Game Data page shows Morrowind.ini and Morrowind, Tribunal and Bloodmoon as found
-   (Check Again after a copy from the Finder). Choose the language of your game, tap Import: the assistant imports
-   `Morrowind.ini` (content files, archives, game settings) into `Config/openmw.cfg`, and Play starts the game.
+2. Put the Morrowind folder of your PC installation (the one with `Data Files` and `Morrowind.ini`) somewhere the
+   Files app reaches: on the iPad, in iCloud Drive, on a USB drive or a network share. On the Game Data page, tap
+   Copy from Files… and choose that folder or its `Data Files` folder: the assistant copies the contents of
+   `Data Files` into `Data` and `Morrowind.ini` into `Config` (Choose Morrowind.ini… if the folder has none). A copy
+   that was cancelled or interrupted continues where it stopped when you copy the folder again; files only in `Data`
+   (mods) stay.
+   Or copy them yourself: the contents of `Data Files` into `Data` (keep the folder structure: `Morrowind.esm`,
+   `Morrowind.bsa`, `Meshes/`, `Textures/`, ...) and `Morrowind.ini` into `Config` or, along with the game files,
+   into `Data` (the app moves it to `Config`); Check Again after a copy from the Finder.
+3. Once the Game Data page shows Morrowind.ini and Morrowind, Tribunal and Bloodmoon as found, choose the language of
+   your game and tap Import: the assistant imports `Morrowind.ini` (content files, archives, game settings) into
+   `Config/openmw.cfg`, and Play starts the game.
 
 Settings > Apps > OpenMW > "Set Up Game Data at Next Launch" opens the assistant again, e.g. to change the language
 or to import the ini again: the import updates `Config/openmw.cfg` like OpenMW's wizard (your own `data=` lines stay,
