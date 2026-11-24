@@ -1,6 +1,7 @@
 #include "platform.hpp"
 
 #include <components/debug/debuglog.hpp>
+#include <components/files/conversion.hpp>
 #include <components/settings/values.hpp>
 
 #include "../mwgui/windowmanagerimp.hpp"
@@ -19,10 +20,18 @@
 #include <mach/mach.h>
 #include <os/proc.h>
 
+#include <algorithm>
+#include <chrono>
 #include <cstdint>
 #include <cstdlib>
+#include <ctime>
+#include <filesystem>
+#include <fstream>
 #include <iterator>
+#include <optional>
 #include <string>
+#include <utility>
+#include <vector>
 
 // target of the two-finger tap on the game view
 @interface OMWTwoFingerTap : NSObject
@@ -53,6 +62,69 @@ namespace
                          << (ok ? info.ledger_phys_footprint_peak / mb : 0) << " MB, available "
                          << os_proc_available_memory() / mb << " MB, thermal state "
                          << (thermal < std::size(thermalStates) ? thermalStates[thermal] : "unknown");
+    }
+
+    // the Settings app's "Log contents of Datafiles to file", off again before the listing (as the setup assistant's
+    // switch). No exceptions: it also runs in a notification block.
+    void logDataFilesIfRequested()
+    {
+        const CFStringRef key = CFSTR("LogDataFiles");
+        // the Settings app may have changed it while the app was in the background
+        CFPreferencesAppSynchronize(kCFPreferencesCurrentApplication);
+        if (!CFPreferencesGetAppBooleanValue(key, kCFPreferencesCurrentApplication, nullptr))
+            return;
+        CFPreferencesSetAppValue(key, nullptr, kCFPreferencesCurrentApplication);
+        CFPreferencesAppSynchronize(kCFPreferencesCurrentApplication);
+
+        const auto start = std::chrono::steady_clock::now();
+        const std::filesystem::path documents
+            = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES)
+                  .firstObject.fileSystemRepresentation;
+        // as find lists them: hidden entries too, links not followed; folders it may not read are left out
+        std::vector<std::pair<std::filesystem::path, std::optional<std::uintmax_t>>> entries;
+        std::error_code ec;
+        for (std::filesystem::recursive_directory_iterator
+                 it(documents, std::filesystem::directory_options::skip_permission_denied, ec),
+             end;
+             !ec && it != end; it.increment(ec))
+        {
+            std::optional<std::uintmax_t> size;
+            std::error_code entryEc;
+            if (it->symlink_status(entryEc).type() == std::filesystem::file_type::regular)
+                if (const std::uintmax_t bytes = it->file_size(entryEc); !entryEc)
+                    size = bytes;
+            entries.emplace_back(it->path().lexically_relative(documents), size);
+        }
+        // path element order: a folder's entries right after it, also next to "Data Files"
+        std::sort(entries.begin(), entries.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
+
+        char date[32];
+        const std::time_t now = std::time(nullptr);
+        std::tm local{};
+        localtime_r(&now, &local);
+        std::strftime(date, sizeof(date), "%Y-%m-%d-%H%M%S", &local);
+        const std::string name = std::string("Datafiles-") + date + ".log";
+        std::ofstream file(documents / name);
+        for (const auto& [path, size] : entries)
+        {
+            file << "./" << Files::pathToUnicodeString(path);
+            if (size)
+                file << '\t' << *size;
+            file << '\n';
+        }
+        if (ec)
+            file << "# incomplete: " << ec.message() << '\n';
+        file.close();
+        if (!file)
+        {
+            Log(Debug::Warning) << "Failed to write Documents/" << name;
+            return;
+        }
+        Log(Debug::Info) << "Listed " << entries.size() << " entries of Documents/ into " << name << " in "
+                         << std::chrono::duration_cast<std::chrono::milliseconds>(
+                                std::chrono::steady_clock::now() - start)
+                                .count()
+                         << " ms" << (ec ? " (incomplete: " + ec.message() + ")" : "");
     }
 
     // Xcode's CoreDevice adds a virtual mouse ("CoreDevice touchscreenGesture") while a Mac drives the device
@@ -297,6 +369,19 @@ void OMW::initIosPlatform()
                                 object:nil
                                  queue:NSOperationQueue.mainQueue
                             usingBlock:^(NSNotification* notification) { updateInputDevices(notification.name); }];
+    }
+}
+
+void OMW::initDataFilesLog()
+{
+    @autoreleasepool
+    {
+        logDataFilesIfRequested();
+        // the Settings app is used while this app is in the background
+        [NSNotificationCenter.defaultCenter addObserverForName:UIApplicationWillEnterForegroundNotification
+                                                        object:nil
+                                                         queue:nil
+                                                    usingBlock:^(NSNotification*) { logDataFilesIfRequested(); }];
     }
 }
 

@@ -22,6 +22,24 @@
 			<key>DefaultValue</key>
 			<false/>
 		</dict>
+		<dict>
+			<key>Type</key>
+			<string>PSGroupSpecifier</string>
+			<key>Title</key>
+			<string>Troubleshooting</string>
+			<key>FooterText</key>
+			<string>The next time the app starts or you switch back to it, it writes a list of all files in its folder in the Files app, with their sizes, to Datafiles-&lt;date&gt;.log there. The switch then turns itself off.</string>
+		</dict>
+		<dict>
+			<key>Type</key>
+			<string>PSToggleSwitchSpecifier</string>
+			<key>Title</key>
+			<string>Log contents of Datafiles to file</string>
+			<key>Key</key>
+			<string>LogDataFiles</string>
+			<key>DefaultValue</key>
+			<false/>
+		</dict>
 	</array>
 </dict>
 </plist>

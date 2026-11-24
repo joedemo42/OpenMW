@@ -238,6 +238,8 @@ int runApplication(int argc, char* argv[])
     osg::setNotifyHandler(new OSGLogHandler());
     Files::ConfigurationManager cfgMgr;
 #if defined(__APPLE__) && TARGET_OS_IPHONE
+    // before the setup assistant: the listing also helps while game files are missing
+    OMW::initDataFilesLog();
     // before the platform setup: its touch controls would show up over the alert and the setup assistant
     OMW::showUnofficialPortNotice();
     if (!OMW::ensureUserConfig(cfgMgr.getUserConfigPath()))

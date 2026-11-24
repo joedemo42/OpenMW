@@ -86,6 +86,11 @@ the content files are those of the ini).
 If game files are missing at launch, `missing.log` in the app's documents lists where each one is expected, e.g.
 `./Data/Morrowind.bsa`. It is removed again at the next launch.
 
+Settings > Apps > OpenMW > "Log contents of Datafiles to file" writes a list of everything in the app's documents
+(`./Data/Morrowind.esm` and the size in bytes, sorted) to `Datafiles-<date>.log` there, the next time the app starts
+or you switch back to it; the switch then turns itself off. Useful to check a copy of the game data or to attach to
+a bug report.
+
 The app's documents also hold `Saves/`, `Screenshots/`, `Logs/openmw.log` (attach it to bug reports) and
 `Config/settings.cfg`. There is no launcher on iOS:
 add mods with `data=` and `content=` lines in `Config/openmw.cfg` (paths relative to `Config/`, e.g.
