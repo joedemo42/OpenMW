@@ -55,6 +55,9 @@ targets:
         embed: false
       - framework: ../ios-deps/artifacts/OpenAL.xcframework
         embed: false
+      # touch controls (OpenMW/TouchControls.swift)
+      - framework: ../ios-deps/artifacts/MeloController.xcframework
+        embed: false
       - sdk: AudioToolbox.framework
       - sdk: AVFoundation.framework
       - sdk: CoreAudio.framework
@@ -63,7 +66,6 @@ targets:
       - sdk: CoreHaptics.framework
         weak: true
       - sdk: CoreMotion.framework
-      - sdk: CoreText.framework
       - sdk: CoreVideo.framework
       - sdk: Foundation.framework
       - sdk: GameController.framework

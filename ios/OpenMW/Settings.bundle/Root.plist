@@ -8,6 +8,58 @@
 			<key>Type</key>
 			<string>PSGroupSpecifier</string>
 			<key>Title</key>
+			<string>Touch Controls</string>
+			<key>FooterText</key>
+			<string>The on-screen controls show while no keyboard, mouse or game controller is connected; the game's button hints use the same labels. In the game (not in menus), dragging outside the controls looks around and a tap does the chosen action. Changes apply the next time the app starts or you switch back to it.</string>
+		</dict>
+		<dict>
+			<key>Type</key>
+			<string>PSMultiValueSpecifier</string>
+			<key>Title</key>
+			<string>Button Labels</string>
+			<key>Key</key>
+			<string>TouchControlsLabels</string>
+			<key>DefaultValue</key>
+			<string>xbox</string>
+			<key>Values</key>
+			<array>
+				<string>xbox</string>
+				<string>playstation</string>
+				<string>nintendo</string>
+			</array>
+			<key>Titles</key>
+			<array>
+				<string>Xbox</string>
+				<string>PlayStation</string>
+				<string>Nintendo</string>
+			</array>
+		</dict>
+		<dict>
+			<key>Type</key>
+			<string>PSMultiValueSpecifier</string>
+			<key>Title</key>
+			<string>Taps outside the controls</string>
+			<key>Key</key>
+			<string>TouchTapAction</string>
+			<key>DefaultValue</key>
+			<string>off</string>
+			<key>Values</key>
+			<array>
+				<string>off</string>
+				<string>attack</string>
+				<string>interact</string>
+			</array>
+			<key>Titles</key>
+			<array>
+				<string>Off</string>
+				<string>Attack</string>
+				<string>Interact</string>
+			</array>
+		</dict>
+		<dict>
+			<key>Type</key>
+			<string>PSGroupSpecifier</string>
+			<key>Title</key>
 			<string>Game Data</string>
 			<key>FooterText</key>
 			<string>Opens the setup assistant the next time the app starts, to import Morrowind.ini again or to change the language. If the app is still open, close it in the app switcher first.</string>

@@ -102,8 +102,12 @@ folder out of git, e.g. with a `/Data/` line in `.git/info/exclude`.
 
 ## Controls and iOS options
 
-- Keyboard with mouse or trackpad, game controllers, or on-screen touch controls when nothing is connected (a
-  two-finger tap opens the game menu). Menus switch to the controller layout automatically.
+- Keyboard with mouse or trackpad, game controllers, or on-screen touch controls when nothing is connected
+  ([Melo-Controller](https://github.com/stossy11/Melo-Controller): both sticks, D-pad, face buttons, shoulders,
+  triggers, L3/R3, View/Menu). Settings > Apps > OpenMW > "Button Labels" chooses Xbox (default), PlayStation or
+  Nintendo labels; the game's button hints match. In the game, dragging outside the controls looks around and a tap
+  does what "Taps outside the controls" says: nothing (default), attack or interact; menus take taps as clicks.
+  Menus switch to the controller layout automatically.
 - Options > Video has iOS-specific settings: Render Scale (50 to 200 % of the display resolution), MetalFX Upscaling
   and MetalFX Sharpening, Frame Rate Limit (60 fps by default) and the Metal Performance HUD.
 

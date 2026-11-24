@@ -4,16 +4,21 @@
 #include <components/files/conversion.hpp>
 #include <components/settings/values.hpp>
 
+#include "../mwbase/environment.hpp"
+#include "../mwbase/inputmanager.hpp"
+#include "../mwbase/statemanager.hpp"
 #include "../mwgui/windowmanagerimp.hpp"
+#include "../mwinput/actions.hpp"
 #include "../mwrender/pingpongcanvas.hpp"
 #include "metalfx.hpp"
 
 #include <SDL_events.h>
+#include <SDL_gamecontroller.h>
 #include <SDL_hints.h>
+#include <SDL_joystick.h>
 #include <SDL_syswm.h>
 
 #import <AVFAudio/AVFAudio.h>
-#import <CoreText/CoreText.h>
 #import <GameController/GameController.h>
 #import <UIKit/UIKit.h>
 
@@ -30,20 +35,26 @@
 #include <iterator>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
-// target of the two-finger tap on the game view
-@interface OMWTwoFingerTap : NSObject
-- (void)tapped:(UITapGestureRecognizer*)recognizer;
-@end
+extern "C"
+{
+    /// ios/OpenMW/TouchControls.swift: Melo-Controller's on-screen controller over the game view of \a window (SDL's
+    /// UIWindow) with the labels of \a style (LabelStyle). A press or release of a Melo button ("A", "leftTrigger",
+    /// ...) goes to \a button, a stick position (right stick, x and y in -1...1, y down) to \a stick.
+    void OMWShowTouchControls(void* window, int style, void (*button)(const char* id, bool pressed),
+        void (*stick)(bool right, float x, float y));
+    void OMWHideTouchControls();
+}
 
 namespace
 {
-    // on-screen controls (system-drawn GCVirtualController) while no keyboard, mouse or game controller is connected
-    GCVirtualController* sTouchController = nil;
     // decided once GameController has reported the devices connected at launch
     bool sDevicesReported = false;
+    // SDL's game window, once it exists: the touch controls go over it
+    Uint32 sGameWindowId = 0;
 
     // memory log while the app runs: a long session's trend
     dispatch_source_t sMemoryTimer = nil;
@@ -136,13 +147,9 @@ namespace
         return false;
     }
 
-    // the touch controller is a GCController too, but never counts as one
     bool hasGameController()
     {
-        for (GCController* controller in GCController.controllers)
-            if (sTouchController == nil || controller != sTouchController.controller)
-                return true;
-        return false;
+        return GCController.controllers.count > 0;
     }
 
     // console-style menus unless a keyboard or mouse is connected without a game controller
@@ -152,131 +159,283 @@ namespace
         return hasGameController() || !keyboardOrMouse;
     }
 
-    // A button face like the system's A/B/X/Y: a disc with the label cut out. The touch controller draws an element's
-    // path as its face, centered on the origin (y up) and scaled to the button.
-    UIBezierPath* labeledFace(NSString* label)
+    // the Settings app's "Button Labels" (ios/OpenMW/Settings.bundle), in TouchControls.swift's order
+    enum class LabelStyle
     {
-        CTFontRef font = CTFontCreateUIFontForLanguage(kCTFontUIFontEmphasizedSystem, 24, nullptr);
-        CGMutablePathRef glyphs = CGPathCreateMutable();
-        CGFloat x = 0;
-        for (NSUInteger i = 0; i < label.length; ++i)
-        {
-            const UniChar character = [label characterAtIndex:i];
-            CGGlyph glyph;
-            CTFontGetGlyphsForCharacters(font, &character, &glyph, 1);
-            if (CGPathRef path = CTFontCreatePathForGlyph(font, glyph, nullptr))
-            {
-                const CGAffineTransform advance = CGAffineTransformMakeTranslation(x, 0);
-                CGPathAddPath(glyphs, &advance, path);
-                CGPathRelease(path);
-            }
-            x += CTFontGetAdvancesForGlyphs(font, kCTFontOrientationDefault, &glyph, nullptr, 1);
-        }
-        CFRelease(font);
+        Xbox,
+        PlayStation,
+        Nintendo
+    };
 
-        const CGRect bounds = CGPathGetPathBoundingBox(glyphs);
-        const CGAffineTransform center
-            = CGAffineTransformMakeTranslation(-CGRectGetMidX(bounds), -CGRectGetMidY(bounds));
-        CGPathRef centered = CGPathCreateCopyByTransformingPath(glyphs, &center);
-        CGPathRelease(glyphs);
+    // the controller SDL reports for the touch controls, so that OpenMW's button hints show their labels: Xbox One S,
+    // PS4, Switch Pro (vendor and product as in SDL's controller list)
+    struct LabelStyleInfo
+    {
+        const char* mValue;
+        const char* mName;
+        Uint16 mVendor;
+        Uint16 mProduct;
+    };
+    constexpr LabelStyleInfo labelStyles[] = { { "xbox", "Xbox", 0x045e, 0x02ea },
+        { "playstation", "PlayStation", 0x054c, 0x09cc }, { "nintendo", "Nintendo", 0x057e, 0x2009 } };
 
-        UIBezierPath* face = [UIBezierPath bezierPathWithArcCenter:CGPointZero
-                                                            radius:20
-                                                        startAngle:0
-                                                          endAngle:2 * M_PI
-                                                         clockwise:YES];
-        [face appendPath:[UIBezierPath bezierPathWithCGPath:centered]];
-        CGPathRelease(centered);
-        face.usesEvenOddFillRule = YES;
-        return face;
+    // a value the Settings app stored; nil until the user changed it there
+    NSString* stringPreference(CFStringRef key)
+    {
+        NSString* value = [(id)CFPreferencesCopyAppValue(key, kCFPreferencesCurrentApplication) autorelease];
+        return [value isKindOfClass:[NSString class]] ? value : nil;
     }
 
-    // The touch controller has all elements of OpenMW's default controller bindings but sneak, view, game menu and
-    // quicksave (it cannot draw L3, R3, Menu or Home). A two-finger tap opens the game menu, quicksave is Save there.
-    // ponytail: no touch input for sneak and view (upgrade path: more gestures, or app-drawn controls via the hidden
-    // configuration).
+    LabelStyle readLabelStyle()
+    {
+        NSString* value = stringPreference(CFSTR("TouchControlsLabels"));
+        for (std::size_t i = 0; i < std::size(labelStyles); ++i)
+            if ([value isEqualToString:@(labelStyles[i].mValue)])
+                return static_cast<LabelStyle>(i);
+        return LabelStyle::Xbox;
+    }
+
+    // the Settings app's "Taps outside the controls"
+    enum class TapAction
+    {
+        Off,
+        Attack,
+        Interact
+    };
+    TapAction sTapAction = TapAction::Off;
+
+    TapAction readTapAction()
+    {
+        NSString* value = stringPreference(CFSTR("TouchTapAction"));
+        if ([value isEqualToString:@"attack"])
+            return TapAction::Attack;
+        if ([value isEqualToString:@"interact"])
+            return TapAction::Interact;
+        return TapAction::Off;
+    }
+
+    // Playing: a game is loaded, no menu is open and the controls are on. Videos (the intro too) and loading screens
+    // run their own loops with the controls off and no GUI mode. The state comes first: the engine creates its window
+    // (and with it filterTouchClicks) before the window and input managers.
+    bool inGame()
+    {
+        const MWBase::Environment& env = MWBase::Environment::get();
+        return env.getStateManager()->getState() == MWBase::StateManager::State_Running
+            && !env.getWindowManager()->isGuiMode() && !env.getInputManager()->controlsDisabled();
+    }
+
+    // a left click that is not SDL's touch mouse, so it passes filterTouchClicks
+    void pushLeftClick(bool pressed)
+    {
+        SDL_Event event;
+        SDL_zero(event);
+        event.type = pressed ? SDL_MOUSEBUTTONDOWN : SDL_MOUSEBUTTONUP;
+        event.button.windowID = sGameWindowId;
+        event.button.button = SDL_BUTTON_LEFT;
+        event.button.state = pressed ? SDL_PRESSED : SDL_RELEASED;
+        event.button.clicks = 1;
+        SDL_PushEvent(&event);
+    }
+
+    void doTapAction(TapAction action)
+    {
+        if (action == TapAction::Interact)
+            MWBase::Environment::get().getInputManager()->executeAction(MWInput::A_Activate);
+        else if (action == TapAction::Attack)
+        {
+            // OpenMW's default Use binding, held across several frames: OpenMW reads Use once per frame.
+            // ponytail: follows a rebinding of Use away from the left mouse button (upgrade path: an engine hook)
+            pushLeftClick(true);
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC * 15 / 100), dispatch_get_main_queue(),
+                ^{ pushLeftClick(false); });
+        }
+    }
+
+    // A touch outside the touch controls reaches OpenMW as SDL's touch mouse: motion and the left button. In the game
+    // (not in a menu) its button is dropped, so dragging only looks around; a tap (short, hardly moved) does the
+    // Settings app's tap action. Menus keep their clicks.
+    struct TouchPress
+    {
+        bool mInGame = false;
+        Uint32 mTime = 0;
+        // movement since the press; SDL's relative mouse mode in the game makes the click positions useless
+        int mMovedX = 0;
+        int mMovedY = 0;
+    };
+    TouchPress sTouchPress;
+
+    int filterTouchClicks(void*, SDL_Event* event)
+    {
+        if (event->type == SDL_MOUSEMOTION && event->motion.which == SDL_TOUCH_MOUSEID)
+        {
+            sTouchPress.mMovedX += event->motion.xrel;
+            sTouchPress.mMovedY += event->motion.yrel;
+            return 1;
+        }
+        if ((event->type != SDL_MOUSEBUTTONDOWN && event->type != SDL_MOUSEBUTTONUP)
+            || event->button.which != SDL_TOUCH_MOUSEID || event->button.button != SDL_BUTTON_LEFT)
+            return 1;
+        if (event->button.state == SDL_PRESSED)
+        {
+            sTouchPress = { inGame(), event->button.timestamp, 0, 0 };
+            return sTouchPress.mInGame ? 0 : 1;
+        }
+        if (!sTouchPress.mInGame)
+            return 1;
+        sTouchPress.mInGame = false;
+        constexpr Uint32 tapMaxMs = 300;
+        constexpr int tapMaxMove = 12; // points (SDL's window coordinates)
+        const TapAction action = sTapAction;
+        if (action != TapAction::Off && event->button.timestamp - sTouchPress.mTime <= tapMaxMs
+            && std::abs(sTouchPress.mMovedX) <= tapMaxMove && std::abs(sTouchPress.mMovedY) <= tapMaxMove)
+            // not inside SDL's event queue: the actions send events themselves
+            dispatch_async(dispatch_get_main_queue(), ^{
+                if (inGame())
+                    doTapAction(action);
+            });
+        return 0;
+    }
+
+    // on-screen controls (Melo-Controller) while no keyboard, mouse or game controller is connected, as an SDL virtual
+    // game controller
+    SDL_Joystick* sTouchJoystick = nullptr;
+    LabelStyle sTouchStyle = LabelStyle::Xbox;
+
+    // Melo's face buttons are named by their Nintendo positions: X top, Y left, A right, B bottom. Xbox and
+    // PlayStation labels follow SDL's positions (A bottom), Nintendo labels name SDL's buttons (A right), as SDL maps
+    // Nintendo controllers.
+    SDL_GameControllerButton toSdlButton(std::string_view id, LabelStyle style)
+    {
+        const bool nintendo = style == LabelStyle::Nintendo;
+        if (id == "A")
+            return nintendo ? SDL_CONTROLLER_BUTTON_A : SDL_CONTROLLER_BUTTON_B;
+        if (id == "B")
+            return nintendo ? SDL_CONTROLLER_BUTTON_B : SDL_CONTROLLER_BUTTON_A;
+        if (id == "X")
+            return nintendo ? SDL_CONTROLLER_BUTTON_X : SDL_CONTROLLER_BUTTON_Y;
+        if (id == "Y")
+            return nintendo ? SDL_CONTROLLER_BUTTON_Y : SDL_CONTROLLER_BUTTON_X;
+        constexpr std::pair<std::string_view, SDL_GameControllerButton> buttons[] = {
+            { "back", SDL_CONTROLLER_BUTTON_BACK }, { "guide", SDL_CONTROLLER_BUTTON_GUIDE },
+            { "start", SDL_CONTROLLER_BUTTON_START }, { "leftStick", SDL_CONTROLLER_BUTTON_LEFTSTICK },
+            { "rightStick", SDL_CONTROLLER_BUTTON_RIGHTSTICK }, { "leftShoulder", SDL_CONTROLLER_BUTTON_LEFTSHOULDER },
+            { "rightShoulder", SDL_CONTROLLER_BUTTON_RIGHTSHOULDER }, { "dPadUp", SDL_CONTROLLER_BUTTON_DPAD_UP },
+            { "dPadDown", SDL_CONTROLLER_BUTTON_DPAD_DOWN }, { "dPadLeft", SDL_CONTROLLER_BUTTON_DPAD_LEFT },
+            { "dPadRight", SDL_CONTROLLER_BUTTON_DPAD_RIGHT } };
+        for (const auto& [name, button] : buttons)
+            if (name == id)
+                return button;
+        return SDL_CONTROLLER_BUTTON_INVALID;
+    }
+
+    // SDL reads the virtual controller's state once per frame
+    void touchButton(const char* id, bool pressed)
+    {
+        if (sTouchJoystick == nullptr)
+            return;
+        const std::string_view name(id);
+        if (name == "leftTrigger" || name == "rightTrigger")
+            SDL_JoystickSetVirtualAxis(sTouchJoystick,
+                name == "leftTrigger" ? SDL_CONTROLLER_AXIS_TRIGGERLEFT : SDL_CONTROLLER_AXIS_TRIGGERRIGHT,
+                pressed ? SDL_JOYSTICK_AXIS_MAX : SDL_JOYSTICK_AXIS_MIN);
+        else if (const SDL_GameControllerButton button = toSdlButton(name, sTouchStyle);
+                 button != SDL_CONTROLLER_BUTTON_INVALID)
+            SDL_JoystickSetVirtualButton(sTouchJoystick, button, pressed ? SDL_PRESSED : SDL_RELEASED);
+    }
+
+    void touchStick(bool right, float x, float y)
+    {
+        if (sTouchJoystick == nullptr)
+            return;
+        const auto axis = [](float value) {
+            return static_cast<Sint16>(std::clamp(value, -1.f, 1.f) * SDL_JOYSTICK_AXIS_MAX);
+        };
+        SDL_JoystickSetVirtualAxis(
+            sTouchJoystick, right ? SDL_CONTROLLER_AXIS_RIGHTX : SDL_CONTROLLER_AXIS_LEFTX, axis(x));
+        SDL_JoystickSetVirtualAxis(
+            sTouchJoystick, right ? SDL_CONTROLLER_AXIS_RIGHTY : SDL_CONTROLLER_AXIS_LEFTY, axis(y));
+    }
+
+    void hideTouchControls()
+    {
+        if (sTouchJoystick == nullptr)
+            return;
+        OMWHideTouchControls();
+        const SDL_JoystickID id = SDL_JoystickInstanceID(sTouchJoystick);
+        SDL_JoystickClose(sTouchJoystick);
+        sTouchJoystick = nullptr;
+        for (int i = 0; i < SDL_NumJoysticks(); ++i)
+            if (SDL_JoystickGetDeviceInstanceID(i) == id)
+            {
+                SDL_JoystickDetachVirtual(i);
+                break;
+            }
+        Log(Debug::Info) << "Touch controls off";
+    }
+
+    void showTouchControls(SDL_Window* window, LabelStyle style)
+    {
+        SDL_SysWMinfo info;
+        SDL_VERSION(&info.version);
+        if (!SDL_GetWindowWMInfo(window, &info))
+        {
+            Log(Debug::Warning) << "Failed to show the touch controls: " << SDL_GetError();
+            return;
+        }
+        const LabelStyleInfo& labels = labelStyles[static_cast<std::size_t>(style)];
+        SDL_VirtualJoystickDesc desc;
+        SDL_zero(desc);
+        desc.version = SDL_VIRTUAL_JOYSTICK_DESC_VERSION;
+        desc.type = SDL_JOYSTICK_TYPE_GAMECONTROLLER;
+        // all axes and the buttons up to the D-pad: the joystick's axis/button i is SDL's controller axis/button i
+        desc.naxes = SDL_CONTROLLER_AXIS_MAX;
+        desc.nbuttons = SDL_CONTROLLER_BUTTON_DPAD_RIGHT + 1;
+        desc.vendor_id = labels.mVendor;
+        desc.product_id = labels.mProduct;
+        desc.name = "Touch Controls";
+        const int index = SDL_JoystickAttachVirtualEx(&desc);
+        sTouchJoystick = index < 0 ? nullptr : SDL_JoystickOpen(index);
+        if (sTouchJoystick == nullptr)
+        {
+            Log(Debug::Warning) << "Failed to show the touch controls: " << SDL_GetError();
+            if (index >= 0)
+                SDL_JoystickDetachVirtual(index);
+            return;
+        }
+        sTouchStyle = style;
+        OMWShowTouchControls(info.info.uikit.window, static_cast<int>(style), touchButton, touchStick);
+        Log(Debug::Info) << "Touch controls on (" << labels.mName << " labels)";
+    }
+
+    // Melo-Controller's controls draw all of OpenMW's default controller bindings but quicksave (Save in the game
+    // menu). Shown over SDL's game window; a changed label style shows them anew.
     void updateTouchController()
     {
-        const bool wanted
-            = sDevicesReported && GCKeyboard.coalescedKeyboard == nil && !hasUserMouse() && !hasGameController();
-        if (wanted == (sTouchController != nil))
-            return;
-
-        if (!wanted)
-        {
-            [sTouchController disconnect];
-            [sTouchController release];
-            sTouchController = nil;
-            Log(Debug::Info) << "Touch controls off";
-            return;
-        }
-
-        GCVirtualControllerConfiguration* configuration = [[GCVirtualControllerConfiguration alloc] init];
-        configuration.elements = [NSSet setWithArray:@[ GCInputLeftThumbstick, GCInputRightThumbstick, GCInputButtonA,
-            GCInputButtonB, GCInputButtonX, GCInputButtonY, GCInputLeftShoulder, GCInputRightShoulder,
-            GCInputLeftTrigger, GCInputRightTrigger ]];
-        GCVirtualController* controller = [[GCVirtualController alloc] initWithConfiguration:configuration];
-        [configuration release];
-        sTouchController = controller;
-        Log(Debug::Info) << "Touch controls requested";
-        [controller connectWithReplyHandler:^(NSError* error) {
-            dispatch_async(dispatch_get_main_queue(), ^{
-                if (controller != sTouchController)
-                    return; // disconnected meanwhile
-                if (error != nil)
-                {
-                    Log(Debug::Warning) << "Failed to show the touch controls: " << error.description.UTF8String;
-                    [sTouchController release];
-                    sTouchController = nil;
-                    return;
-                }
-                // the names OpenMW's controller menus show in their hints for this controller type
-                NSDictionary<NSString*, NSString*>* labels = @{ GCInputLeftShoulder : @"L1",
-                    GCInputRightShoulder : @"R1", GCInputLeftTrigger : @"L2", GCInputRightTrigger : @"R2" };
-                for (NSString* element in labels)
-                    [controller updateConfigurationForElement:element
-                                                configuration:^GCVirtualControllerElementConfiguration*(
-                                                    GCVirtualControllerElementConfiguration* elementConfiguration) {
-                                                    elementConfiguration.path = labeledFace(labels[element]);
-                                                    return elementConfiguration;
-                                                }];
-                Log(Debug::Info) << "Touch controls on";
-            });
-        }];
+        SDL_Window* window = sGameWindowId != 0 ? SDL_GetWindowFromID(sGameWindowId) : nullptr;
+        const bool wanted = sDevicesReported && window != nullptr && GCKeyboard.coalescedKeyboard == nil
+            && !hasUserMouse() && !hasGameController();
+        // the Settings app may have changed them while the app was in the background
+        CFPreferencesAppSynchronize(kCFPreferencesCurrentApplication);
+        sTapAction = readTapAction();
+        const LabelStyle style = readLabelStyle();
+        if (sTouchJoystick != nullptr && (!wanted || style != sTouchStyle))
+            hideTouchControls();
+        if (wanted && sTouchJoystick == nullptr)
+            showTouchControls(window, style);
     }
 
-    // the touch controller's undrawn Menu button is SDL's Start button (OpenMW: game menu)
-    void pressStart()
-    {
-        GCVirtualController* controller = sTouchController;
-        if (controller == nil)
-            return;
-        [controller setValue:1 forButtonElement:GCInputButtonMenu];
-        // held across several frames: SDL reads the button state once per frame
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC / 5), dispatch_get_main_queue(),
-            ^{ [controller setValue:0 forButtonElement:GCInputButtonMenu]; });
-    }
-
-    // adds the two-finger tap recognizer to SDL's window once it exists
-    int addTwoFingerTap(void*, SDL_Event* event)
+    // SDL's game window once it exists (SDL's joystick subsystem is initialized before it)
+    int onWindowEvent(void*, SDL_Event* event)
     {
         if (event->type != SDL_WINDOWEVENT)
             return 0;
-        SDL_SysWMinfo info;
-        SDL_VERSION(&info.version);
-        SDL_Window* window = SDL_GetWindowFromID(event->window.windowID);
-        if (window == nullptr || !SDL_GetWindowWMInfo(window, &info))
-            return 0;
-
-        static OMWTwoFingerTap* target = [[OMWTwoFingerTap alloc] init]; // recognizers do not retain their target
-        UITapGestureRecognizer* tap = [[UITapGestureRecognizer alloc] initWithTarget:target action:@selector(tapped:)];
-        tap.numberOfTouchesRequired = 2;
-        // SDL still gets every touch, without delay
-        tap.cancelsTouchesInView = NO;
-        tap.delaysTouchesEnded = NO;
-        [info.info.uikit.window addGestureRecognizer:tap];
-        [tap release];
-        SDL_DelEventWatch(addTwoFingerTap, nullptr);
+        sGameWindowId = event->window.windowID;
+        SDL_DelEventWatch(onWindowEvent, nullptr);
+        // not inside SDL's event dispatch: attaching the virtual controller sends events itself
+        dispatch_async(dispatch_get_main_queue(), ^{
+            SDL_SetEventFilter(filterTouchClicks, nullptr);
+            updateTouchController();
+        });
         return 0;
     }
 
@@ -303,13 +462,6 @@ namespace
         updateTouchController();
     }
 }
-
-@implementation OMWTwoFingerTap
-- (void)tapped:(UITapGestureRecognizer*)recognizer
-{
-    pressStart();
-}
-@end
 
 void OMW::initIosPlatform()
 {
@@ -361,10 +513,11 @@ void OMW::initIosPlatform()
             updateTouchController();
         });
         // before SDL_Init: SDL keeps event watches added before its event loop starts
-        SDL_AddEventWatch(addTwoFingerTap, nullptr);
+        SDL_AddEventWatch(onWindowEvent, nullptr);
+        // the Settings app's "Button Labels" is changed while the app is in the background
         for (NSString* name in @[ GCKeyboardDidConnectNotification, GCKeyboardDidDisconnectNotification,
                  GCMouseDidConnectNotification, GCMouseDidDisconnectNotification, GCControllerDidConnectNotification,
-                 GCControllerDidDisconnectNotification ])
+                 GCControllerDidDisconnectNotification, UIApplicationWillEnterForegroundNotification ])
             [center addObserverForName:name
                                 object:nil
                                  queue:NSOperationQueue.mainQueue
