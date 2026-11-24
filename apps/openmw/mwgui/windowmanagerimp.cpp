@@ -1944,8 +1944,9 @@ namespace MWGui
             LuaUi::WidgetExtension* luaWidget = dynamic_cast<LuaUi::WidgetExtension*>(widget);
             if (luaWidget)
                 capturesInput = luaWidget->isTextInput();
-            else
-                capturesInput = widget->castType<MyGUI::EditBox>(false);
+            // static edit boxes (combo boxes in drop mode, read-only texts) take no typed text
+            else if (const MyGUI::EditBox* editBox = widget->castType<MyGUI::EditBox>(false))
+                capturesInput = !editBox->getEditStatic();
         }
 
         // The SDL_IsTextInputActive() check helps to avoid duplicate calls in SDL2.
