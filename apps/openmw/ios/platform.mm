@@ -43,10 +43,11 @@
 extern "C"
 {
     /// ios/OpenMW/TouchControls.swift: Melo-Controller's on-screen controller over the game view of \a window (SDL's
-    /// UIWindow) with the labels of \a style (LabelStyle). A press or release of a Melo button ("A", "leftTrigger",
-    /// ...) goes to \a button, a stick position (right stick, x and y in -1...1, y down) to \a stick.
+    /// UIWindow) with the labels of \a style (LabelStyle), its left and right clusters above the HUD elements that
+    /// reach \a hudLeft and \a hudRight points above the bottom edge. A press or release of a Melo button ("A",
+    /// "leftTrigger", ...) goes to \a button, a stick position (right stick, x and y in -1...1, y down) to \a stick.
     void OMWShowTouchControls(void* window, int style, void (*button)(const char* id, bool pressed),
-        void (*stick)(bool right, float x, float y));
+        void (*stick)(bool right, float x, float y), float hudLeft, float hudRight);
     void OMWHideTouchControls();
     /// Shows the controls' layout editor button or hides it
     void OMWSetTouchControlsEditable(bool editable);
@@ -425,7 +426,12 @@ namespace
             return;
         }
         sTouchStyle = style;
-        OMWShowTouchControls(info.info.uikit.window, static_cast<int>(style), touchButton, touchStick);
+        // files/data/mygui/openmw_hud.layout, GUI units above the bottom edge: bars and weapon/spell/sneak boxes bottom
+        // left, minimap bottom right; a GUI unit is [GUI] scaling factor points. ponytail: the layout file's numbers
+        // (upgrade path: the HUD widgets' rectangles once the HUD exists)
+        const float guiScale = Settings::gui().mScalingFactor;
+        OMWShowTouchControls(info.info.uikit.window, static_cast<int>(style), touchButton, touchStick, 53 * guiScale,
+            76 * guiScale);
         sEditable = false;
         sMenuTimer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_main_queue());
         dispatch_source_set_timer(sMenuTimer, DISPATCH_TIME_NOW, NSEC_PER_SEC / 4, NSEC_PER_SEC / 20);

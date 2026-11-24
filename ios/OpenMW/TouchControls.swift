@@ -74,16 +74,31 @@ private struct EditButton: UIViewRepresentable {
 private struct TouchControlsRoot: View {
     let input: TouchInput
     let state: EditState
+    /// how far the HUD elements below the left and right clusters reach above the bottom edge (points)
+    let hud: (left: CGFloat, right: CGFloat)
 
     var body: some View {
-        ZStack(alignment: .topLeading) {
-            ControllerView(controller: input, isEditing: state.editing, onEditingChanged: { state.editing = $0 })
-            if state.editable && !state.editing {
-                EditButton { state.editing = true }
-                    .frame(width: 44, height: 44)
-                    .padding(12)
+        GeometryReader { proxy in
+            ZStack(alignment: .topLeading) {
+                ControllerView(
+                    controller: input, isEditing: state.editing, onEditingChanged: { state.editing = $0 },
+                    clusterLift: (lift(hud.left, proxy), lift(hud.right, proxy)))
+                if state.editable && !state.editing {
+                    EditButton { state.editing = true }
+                        .frame(width: 44, height: 44)
+                        .padding(12)
+                }
             }
         }
+    }
+
+    /// Raises a cluster so that the transparent border of its D-pad or ABXY buttons stays one border width above the
+    /// HUD. Melo puts the clusters 16 points (its padding) above the bottom safe area; a round button's symbol reaches
+    /// 7 points below a cluster (measured on an iPad at controller size 1: 29 points above the bottom with a 20 point
+    /// safe area), its border 6.75 points further (iPad: 54 point symbol in a 1.25 times larger circle).
+    private func lift(_ hudTop: CGFloat, _ proxy: GeometryProxy) -> CGFloat {
+        let border: CGFloat = 6.75
+        return max(0, hudTop + border + border + 7 - (proxy.safeAreaInsets.bottom + 16))
     }
 }
 
@@ -119,11 +134,13 @@ private final class TouchControlsView: UIView {
 @MainActor private var touchControls:
     (host: UIHostingController<TouchControlsRoot>, view: TouchControlsView, state: EditState)?
 
-/// Shows the controller over the game view of \a window (SDL's UIWindow) with the labels of \a style; presses and
-/// stick positions go to \a button and \a stick. Called on the main thread.
+/// Shows the controller over the game view of \a window (SDL's UIWindow) with the labels of \a style, its clusters
+/// above the HUD elements that reach \a hudLeft and \a hudRight points above the bottom edge; presses and stick
+/// positions go to \a button and \a stick. Called on the main thread.
 @MainActor @_cdecl("OMWShowTouchControls")
 func showTouchControls(
-    _ window: UnsafeMutableRawPointer, _ style: Int32, _ button: TouchButton, _ stick: TouchStick
+    _ window: UnsafeMutableRawPointer, _ style: Int32, _ button: TouchButton, _ stick: TouchStick, _ hudLeft: Float,
+    _ hudRight: Float
 ) {
     hideTouchControls()
     let gameWindow = Unmanaged<UIWindow>.fromOpaque(window).takeUnretainedValue()
@@ -138,7 +155,9 @@ func showTouchControls(
 
     let state = EditState()
     let host = UIHostingController(
-        rootView: TouchControlsRoot(input: TouchInput(button: button, stick: stick), state: state))
+        rootView: TouchControlsRoot(
+            input: TouchInput(button: button, stick: stick), state: state,
+            hud: (CGFloat(hudLeft), CGFloat(hudRight))))
     host.view.backgroundColor = .clear
     let view = TouchControlsView()
     view.state = state
