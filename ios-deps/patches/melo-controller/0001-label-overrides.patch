@@ -1,0 +1,82 @@
+Per-button label overrides
+
+Melo-Controller draws fixed Nintendo-style SF Symbols (A on the right,
+L/R/ZL/ZR, minus/plus) and its layout editor names the face buttons by
+their ids. An app that offers other label styles (Xbox, PlayStation)
+needs to replace a button's symbol and editor name without changing the
+button ids, which the saved layouts are keyed by.
+
+New public VirtualControllerButton.iconOverrides and nameOverrides
+(button id -> SF Symbol / editor name), read by ButtonView and the
+layout editor's LayoutEditorNaming. The trigger and shoulder background
+symbol is derived from whatever label precedes the first dot of the
+icon name ("lb.rectangle.roundedbottom.fill" ->
+"button.roundedbottom.horizontal.fill"), not only from "l"/"r"/"zl"/
+"zr"; Melo's own symbols map exactly as before.
+
+Upstream: not submitted.
+
+diff -ru a/Sources/Melo-Controller/Buttons/ButtonView.swift b/Sources/Melo-Controller/Buttons/ButtonView.swift
+--- a/Sources/Melo-Controller/Buttons/ButtonView.swift	2026-11-24 11:22:44
++++ b/Sources/Melo-Controller/Buttons/ButtonView.swift	2026-11-24 11:22:56
+@@ -106,18 +106,13 @@
+         }
+     }
+     
++    // "zl.rectangle.roundedtop.fill" -> "button.roundedtop.horizontal.fill", whatever the label before the first dot
++    // ("l", "zl", "lb", "l1", ...)
+     private func convertTriggerIconToButton(_ iconName: String) -> String {
+-        if iconName.hasPrefix("zl") || iconName.hasPrefix("zr") {
+-            var converted = String(iconName.dropFirst(3))
+-            converted = converted.replacingOccurrences(of: "rectangle", with: "button")
+-            converted = converted.replacingOccurrences(of: ".fill", with: ".horizontal.fill")
+-            return converted
+-        } else {
+-            var converted = String(iconName.dropFirst(2))
+-            converted = converted.replacingOccurrences(of: "rectangle", with: "button")
+-            converted = converted.replacingOccurrences(of: ".fill", with: ".horizontal.fill")
+-            return converted
+-        }
++        var converted = String(iconName.drop(while: { $0 != "." }).dropFirst())
++        converted = converted.replacingOccurrences(of: "rectangle", with: "button")
++        converted = converted.replacingOccurrences(of: ".fill", with: ".horizontal.fill")
++        return converted
+     }
+     
+     
+@@ -196,6 +191,6 @@
+     }
+     
+     private var buttonConfig: ButtonConfiguration {
+-        .init(iconName: button.iconName)
++        .init(iconName: VirtualControllerButton.iconOverrides[button.id] ?? button.iconName)
+     }
+ }
+diff -ru a/Sources/Melo-Controller/Layout/LayoutEditorView.swift b/Sources/Melo-Controller/Layout/LayoutEditorView.swift
+--- a/Sources/Melo-Controller/Layout/LayoutEditorView.swift	2026-11-24 11:22:44
++++ b/Sources/Melo-Controller/Layout/LayoutEditorView.swift	2026-11-24 11:22:58
+@@ -294,6 +294,7 @@
+ 
+ enum LayoutEditorNaming {
+     static func displayName(for id: String) -> String {
++        if let name = VirtualControllerButton.nameOverrides[id] { return name }
+         if id.count == 1 { return id.uppercased() }
+         
+         var words: [String] = []
+diff -ru a/Sources/Melo-Controller/Models/VirtualControllerButton.swift b/Sources/Melo-Controller/Models/VirtualControllerButton.swift
+--- a/Sources/Melo-Controller/Models/VirtualControllerButton.swift	2026-11-24 11:22:44
++++ b/Sources/Melo-Controller/Models/VirtualControllerButton.swift	2026-11-24 11:22:48
+@@ -16,7 +16,12 @@
+ 
+ public struct VirtualControllerButton: Hashable, Codable, Identifiable {
+     static var registered: Set<VirtualControllerButton> = []
+-    
++
++    /// The app's labels by button id: SF Symbol drawn instead of `iconName`, and the name the layout editor shows.
++    /// Set before the controller view appears; buttons without an entry keep their own.
++    public static var iconOverrides: [String: String] = [:]
++    public static var nameOverrides: [String: String] = [:]
++
+     public let id: String
+     public var iconName: String
+     public var small: Bool

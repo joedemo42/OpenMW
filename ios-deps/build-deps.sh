@@ -17,7 +17,7 @@ ARTIFACTS_DIR="$DEPS_DIR/artifacts"
 SCRIPT="${0#"$PWD/"}"
 
 # Build order: every dependency after its prerequisites.
-DEPS=(moltenvk mesa sdl2 libpng libjpeg-turbo freetype osg lz4 boost yaml-cpp bullet mygui recastnavigation icu luajit ffmpeg openal-soft)
+DEPS=(moltenvk mesa sdl2 libpng libjpeg-turbo freetype osg lz4 boost yaml-cpp bullet mygui recastnavigation icu luajit ffmpeg openal-soft melo-controller)
 
 usage() {
     cat <<EOF
@@ -120,13 +120,19 @@ configure_build() {  # <build dir> <configure script> [args...]
     echo "$stamp" > "$build/.configured"
 }
 
-# Creates artifacts/<name>.xcframework from build/<dep>/<target>/<lib> (+ <headers> dir)
-# for every built target, then checks each requested target's slice (arm64, platform).
-xcframework() {  # <name> <lib path> [<headers path>]   (paths relative to build/<dep>/<target>)
-    local name=$1 out="$ARTIFACTS_DIR/$1.xcframework" args=() t
+# Creates artifacts/<name>.xcframework from build/<dep>/<target>/<lib> (+ <headers> dir) or from a static
+# build/<dep>/<target>/<name>.framework for every built target, then checks each requested target's slice (arm64,
+# platform).
+xcframework() {  # <name> <lib path | .framework path> [<headers path>]   (paths relative to build/<dep>/<target>)
+    local name=$1 out="$ARTIFACTS_DIR/$1.xcframework" args=() t binary=$(basename "$2")
+    [[ $2 == *.framework ]] && binary="$binary/$(basename "$2" .framework)"
     for t in simulator device; do
-        [ -f "$BUILD_DIR/$DEP/$t/$2" ] || continue
-        args+=(-library "$BUILD_DIR/$DEP/$t/$2")
+        [ -e "$BUILD_DIR/$DEP/$t/$2" ] || continue
+        if [[ $2 == *.framework ]]; then
+            args+=(-framework "$BUILD_DIR/$DEP/$t/$2")
+        else
+            args+=(-library "$BUILD_DIR/$DEP/$t/$2")
+        fi
         [ -z "${3:-}" ] || args+=(-headers "$BUILD_DIR/$DEP/$t/$3")
     done
     rm -rf "$out" && mkdir -p "$ARTIFACTS_DIR"
@@ -135,7 +141,7 @@ xcframework() {  # <name> <lib path> [<headers path>]   (paths relative to build
         # LC_BUILD_VERSION platform: 2 = iOS, 7 = iOS simulator
         local slice=ios-arm64 platform=2 lib platforms
         [ "$t" = simulator ] && { slice=ios-arm64-simulator; platform=7; }
-        lib="$out/$slice/$(basename "$2")"
+        lib="$out/$slice/$binary"
         [ -f "$lib" ] || die "$name.xcframework: missing $t slice"
         [ "$(lipo -archs "$lib")" = arm64 ] || die "$name.xcframework: $t slice is not arm64-only"
         platforms=$(otool -l "$lib" | awk '/cmd LC_BUILD_VERSION/ {f = 1} f && $1 == "platform" {print $2; f = 0}' | sort -u)

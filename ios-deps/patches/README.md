@@ -22,5 +22,6 @@ source again.
 | | `sdl2/0003-uikit-ios27-interface-orientation.patch` | interface orientation on iOS 27, backport from SDL3 |
 | OpenSceneGraph (OpenMW fork, OSG 3.6.5) | `osg/0001-glextensions-egl-proc-address-on-ios.patch` | GL functions through `eglGetProcAddress` on iOS with desktop GL |
 | | `osg/0002-cmake-find-png-jpeg-on-ios.patch` | libpng and libjpeg found on CMake's iOS platform (png plugin) |
+| Melo-Controller (commit b16a8e39) | `melo-controller/0001-label-overrides.patch` | per-button symbol and layout editor name, so the app can offer other label styles |
 
 Mesa stays on 25.1.x: from 25.2 on, zink requires robustness2 `nullDescriptor`, which MoltenVK does not provide.
