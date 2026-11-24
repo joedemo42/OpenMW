@@ -12,6 +12,7 @@
 #include "../mwrender/pingpongcanvas.hpp"
 #include "metalfx.hpp"
 
+#include <MyGUI_Gui.h>
 #include <SDL_events.h>
 #include <SDL_gamecontroller.h>
 #include <SDL_hints.h>
@@ -47,6 +48,8 @@ extern "C"
     void OMWShowTouchControls(void* window, int style, void (*button)(const char* id, bool pressed),
         void (*stick)(bool right, float x, float y));
     void OMWHideTouchControls();
+    /// Shows the controls' layout editor button or hides it
+    void OMWSetTouchControlsEditable(bool editable);
 }
 
 namespace
@@ -356,10 +359,29 @@ namespace
             sTouchJoystick, right ? SDL_CONTROLLER_AXIS_RIGHTY : SDL_CONTROLLER_AXIS_LEFTY, axis(y));
     }
 
+    // The touch controls' layout editor is offered while the game menu is the top screen (the game is paused). The
+    // window manager exists only once the engine created it: its constructor sets up MyGUI first and runs no frame
+    // before the engine stores it.
+    dispatch_source_t sMenuTimer = nil;
+    bool sEditable = false;
+
+    void updateEditable()
+    {
+        const bool editable = MyGUI::Gui::getInstancePtr() != nullptr
+            && MWBase::Environment::get().getWindowManager()->getMode() == MWGui::GM_MainMenu;
+        if (editable == sEditable)
+            return;
+        sEditable = editable;
+        OMWSetTouchControlsEditable(editable);
+    }
+
     void hideTouchControls()
     {
         if (sTouchJoystick == nullptr)
             return;
+        dispatch_source_cancel(sMenuTimer);
+        dispatch_release(sMenuTimer);
+        sMenuTimer = nil;
         OMWHideTouchControls();
         const SDL_JoystickID id = SDL_JoystickInstanceID(sTouchJoystick);
         SDL_JoystickClose(sTouchJoystick);
@@ -404,6 +426,11 @@ namespace
         }
         sTouchStyle = style;
         OMWShowTouchControls(info.info.uikit.window, static_cast<int>(style), touchButton, touchStick);
+        sEditable = false;
+        sMenuTimer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, dispatch_get_main_queue());
+        dispatch_source_set_timer(sMenuTimer, DISPATCH_TIME_NOW, NSEC_PER_SEC / 4, NSEC_PER_SEC / 20);
+        dispatch_source_set_event_handler(sMenuTimer, ^{ updateEditable(); });
+        dispatch_resume(sMenuTimer);
         Log(Debug::Info) << "Touch controls on (" << labels.mName << " labels)";
     }
 

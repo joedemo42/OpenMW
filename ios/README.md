@@ -107,6 +107,8 @@ folder out of git, e.g. with a `/Data/` line in `.git/info/exclude`.
   triggers, L3/R3, View/Menu). Settings > Apps > OpenMW > "Button Labels" chooses Xbox (default), PlayStation or
   Nintendo labels; the game's button hints match. In the game, dragging outside the controls looks around and a tap
   does what "Taps outside the controls" says: nothing (default), attack or interact; menus take taps as clicks.
+  While the game menu is open, the pencil button (top left) opens the layout editor: move, resize or hide buttons and
+  sticks, make a button toggle, import or export a layout. Layouts are saved in `Config/Controller/`.
   Menus switch to the controller layout automatically.
 - Options > Video has iOS-specific settings: Render Scale (50 to 200 % of the display resolution), MetalFX Upscaling
   and MetalFX Sharpening, Frame Rate Limit (60 fps by default) and the Metal Performance HUD.
