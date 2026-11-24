@@ -7,14 +7,14 @@ DEP_ARTIFACTS=(OpenSceneGraph)
 DEP_LICENSES=(LICENSE.txt)
 DEP_NOTICES=(src/osg/glu/libtess/tess.cpp src/osgUtil/PerlinNoise.cpp src/osgViewer/Keystone.cpp
     src/osgPlugins/bmp/ReaderWriterBMP.cpp include/osgAnimation/Vec3Packed)
-OSG_COMMIT=01cc2b585c8456a4ff843066b7e1a8715558289f
+OSG_COMMIT=e568aace1e62de021df9955c62429cbe55516fd3
 # OpenMW's USED_OSG_COMPONENTS (+ OpenThreads) and USED_OSG_PLUGINS (+ serializers_osg), without dae (Collada)
 OSG_LIBRARIES=(OpenThreads osg osgDB osgUtil osgGA osgText osgViewer osgAnimation osgFX osgParticle osgShadow osgSim)
 OSG_PLUGINS=(bmp dds freetype jpeg osg png tga)
 
 osg_download() {
     fetch "https://github.com/OpenMW/osg/archive/$OSG_COMMIT.zip" \
-        3fe02f29906cf371ffc9e49d979c1b517669960f67a57269238bc40d58b651b7
+        546082402028c3cdf440f5f3a3210bef3bfc7c0338aa1e174e1941af10b4aca8
 }
 
 osg_build() {  # <simulator|device>
@@ -25,8 +25,7 @@ osg_build() {  # <simulator|device>
     local mesa="$ARTIFACTS_DIR/Mesa.xcframework/$slice/Headers" png="$ARTIFACTS_DIR/libpng.xcframework/$slice"
     local jpeg="$ARTIFACTS_DIR/libjpeg.xcframework/$slice" freetype="$ARTIFACTS_DIR/freetype.xcframework/$slice"
     local options=(
-        -DCMAKE_POLICY_VERSION_MINIMUM=3.5  # OSG declares CMake 2.8, which CMake 4 refuses
-        -DCMAKE_CXX_STANDARD=17             # as OpenMW's own OSG build
+        -DCMAKE_CXX_STANDARD=17  # as OpenMW's own OSG build
         # settings of OpenMW's extern/CMakeLists.txt
         -DDYNAMIC_OPENTHREADS=OFF -DDYNAMIC_OPENSCENEGRAPH=OFF -DOPENGL_PROFILE=GL2
         -DBUILD_OSG_APPLICATIONS=OFF -DBUILD_OSG_DEPRECATED_SERIALIZERS=OFF -DOSG_FIND_3RD_PARTY_DEPS=OFF
@@ -39,9 +38,6 @@ osg_build() {  # <simulator|device>
         -DCMAKE_DISABLE_FIND_PACKAGE_OpenGL=ON -DCARBON_LIBRARY= -DCOCOA_LIBRARY= -DOSG_TEXT_USE_FONTCONFIG=OFF
         # the host's pkg-config only knows host (Homebrew) packages
         -DPKG_CONFIG_EXECUTABLE=
-        # OpenThreads' atomics checks run test programs (impossible when cross-compiling): GCC builtins,
-        # not the deprecated OSAtomic functions
-        -D_OPENTHREADS_ATOMIC_USE_GCC_BUILTINS_EXITCODE=0 -D_OPENTHREADS_ATOMIC_USE_BSD_ATOMIC_EXITCODE=1
         # image and font libraries from this directory
         -DPNG_PNG_INCLUDE_DIR="$png/Headers" -DPNG_LIBRARY="$png/libpng16.a"
         -DJPEG_INCLUDE_DIR="$jpeg/Headers" -DJPEG_LIBRARY="$jpeg/libjpeg.a"
