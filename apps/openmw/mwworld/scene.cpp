@@ -6,6 +6,8 @@
 
 #include <BulletCollision/CollisionDispatch/btCollisionObject.h>
 
+#include <osg/ref_ptr>
+
 #include <components/debug/debuglog.hpp>
 #include <components/detournavigator/agentbounds.hpp>
 #include <components/detournavigator/debug.hpp>
@@ -911,10 +913,10 @@ namespace MWWorld
 
     Scene::~Scene()
     {
-        for (const osg::ref_ptr<SceneUtil::WorkItem>& v : mWorkItems)
+        for (const std::shared_ptr<SceneUtil::WorkItem>& v : mWorkItems)
             v->abort();
 
-        for (const osg::ref_ptr<SceneUtil::WorkItem>& v : mWorkItems)
+        for (const std::shared_ptr<SceneUtil::WorkItem>& v : mWorkItems)
             v->waitTillDone();
     }
 
@@ -1126,10 +1128,9 @@ namespace MWWorld
         if (mRendering.getResourceSystem()->getSceneManager()->checkLoaded(meshPath, mRendering.getReferenceTime()))
             return;
 
-        osg::ref_ptr<PreloadMeshItem> item(
-            new PreloadMeshItem(meshPath, mRendering.getResourceSystem()->getSceneManager()));
+        auto item = std::make_shared<PreloadMeshItem>(meshPath, mRendering.getResourceSystem()->getSceneManager());
         mRendering.getWorkQueue()->addWorkItem(item);
-        const auto isDone = [](const osg::ref_ptr<SceneUtil::WorkItem>& v) { return v->isDone(); };
+        const auto isDone = [](const std::shared_ptr<SceneUtil::WorkItem>& v) { return v->isDone(); };
         mWorkItems.erase(std::remove_if(mWorkItems.begin(), mWorkItems.end(), isDone), mWorkItems.end());
         mWorkItems.emplace_back(std::move(item));
     }
@@ -1362,7 +1363,7 @@ namespace MWWorld
         }
     }
 
-    void Scene::reportStats(unsigned int frameNumber, osg::Stats& stats) const
+    void Scene::reportStats(unsigned int frameNumber, Misc::FrameStats& stats) const
     {
         mPreloader->reportStats(frameNumber, stats);
     }

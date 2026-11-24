@@ -24,8 +24,9 @@ void CSVWorld::GenericCreator::update()
 {
     mErrors = getErrors();
 
-    mCreate->setToolTip(QString::fromUtf8(mErrors.c_str()));
-    mId->setToolTip(QString::fromUtf8(mErrors.c_str()));
+    const QString tooltip = Qt::convertFromPlainText(QString::fromUtf8(mErrors.c_str()));
+    mCreate->setToolTip(tooltip);
+    mId->setToolTip(tooltip);
 
     mCreate->setEnabled(mErrors.empty() && !mLocked);
 }
@@ -248,12 +249,11 @@ void CSVWorld::GenericCreator::create()
         if (mCloneMode)
         {
             command = std::make_unique<CSMWorld::CloneCommand>(
-                dynamic_cast<CSMWorld::IdTable&>(*mData.getTableModel(mListId)), mClonedId, id, mClonedType);
+                mData.getTableModel<CSMWorld::IdTable>(mListId), mClonedId, id, mClonedType);
         }
         else
         {
-            command = std::make_unique<CSMWorld::CreateCommand>(
-                dynamic_cast<CSMWorld::IdTable&>(*mData.getTableModel(mListId)), id);
+            command = std::make_unique<CSMWorld::CreateCommand>(mData.getTableModel<CSMWorld::IdTable>(mListId), id);
         }
 
         configureCreateCommand(*command);
@@ -276,7 +276,7 @@ void CSVWorld::GenericCreator::touch(const std::vector<CSMWorld::UniversalId>& i
     // Combine multiple touch commands into one "macro" command
     mUndoStack.beginMacro("Touch Records");
 
-    CSMWorld::IdTable& table = dynamic_cast<CSMWorld::IdTable&>(*mData.getTableModel(mListId));
+    auto& table = mData.getTableModel<CSMWorld::IdTable>(mListId);
     for (const CSMWorld::UniversalId& uid : ids)
     {
         CSMWorld::TouchCommand* touchCmd = new CSMWorld::TouchCommand(table, uid.getId());

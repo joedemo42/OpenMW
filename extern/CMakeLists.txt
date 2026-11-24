@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-set_directory_properties(PROPERTIES EXCLUDE_FROM_ALL on)
+set_directory_properties(PROPERTIES EXCLUDE_FROM_ALL on SYSTEM on)
 set(CMAKE_CXX_CLANG_TIDY "")
 
 if(NOT OPENMW_USE_SYSTEM_BULLET)
@@ -31,11 +31,10 @@ if(NOT OPENMW_USE_SYSTEM_BULLET)
         set(USE_MSVC_RUNTIME_LIBRARY_DLL ON CACHE BOOL "" FORCE)
     endif()
 
-    # May 7, 2021
     include(FetchContent)
     FetchContent_Declare(bullet
-        URL https://github.com/bulletphysics/bullet3/archive/refs/tags/3.17.tar.gz
-        URL_HASH SHA512=a5105bf5f1dd365a64a350755c7d2c97942f74897a18dcdb3651e6732fd55cc1030a096f5808cf50575281f05e3ac09aa50a48d271a47b94cd61f5167a72b7cc
+        URL https://github.com/bulletphysics/bullet3/archive/refs/tags/3.25.tar.gz
+        URL_HASH SHA512=7086e5fcf69635801bb311261173cb8d173b712ca1bd78be03df48fad884674e85512861190e45a1a62d5627aaad65cde08c175c44a3be9afa410d3dfd5358d4
         SOURCE_DIR fetched/bullet
     )
     FetchContent_MakeAvailable(bullet)
@@ -130,8 +129,8 @@ if(NOT OPENMW_USE_SYSTEM_OSG)
     # OSGoS branch 3.6
     include(FetchContent)
     FetchContent_Declare(osg
-        URL https://github.com/OpenMW/osg/archive/01cc2b585c8456a4ff843066b7e1a8715558289f.zip
-        URL_HASH SHA512=9b0a94c1c1d99c767f1857629d43c7a53bfcb74ef760993a121567831e168a1ebbfc10b0c67d7f2241c7b6c6dab2d0e6b876d9f17aca0fabe1a8c86b2279f956
+        URL https://github.com/OpenMW/osg/archive/e568aace1e62de021df9955c62429cbe55516fd3.zip
+        URL_HASH SHA512=d34ec0d4e09287d288f9b8d524604f44eecdcf41dc254ccf7566dfc8d387285c413864f72d0cadd722e0c251b5712691ccd84a1f5b74b632785380c14c059942
         SOURCE_DIR fetched/osg
     )
     FetchContent_MakeAvailable(osg)
@@ -187,6 +186,16 @@ if (NOT OPENMW_USE_SYSTEM_SQLITE3)
 endif()
 
 add_subdirectory(smhasher)
+
+if(NOT OPENMW_USE_SYSTEM_GLM)
+    include(FetchContent)
+    FetchContent_Declare(glm
+        URL https://github.com/g-truc/glm/archive/refs/tags/1.0.1.tar.gz
+        URL_HASH SHA512=c6c6fa1ea7a7e97820e36ee042a78be248ae828c99c1b1111080d9bf334a5160c9993a70312351c92a867cd49907c95f9f357c8dfe2bc29946da6e83e27ba20c
+        SOURCE_DIR fetched/glm
+    )
+    FetchContent_MakeAvailable(glm)
+endif()
 
 if (BUILD_BENCHMARKS AND NOT OPENMW_USE_SYSTEM_BENCHMARK)
 

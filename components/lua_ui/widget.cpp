@@ -2,10 +2,14 @@
 #include "components/lua/utilpackage.hpp"
 #include "components/lua_ui/util.hpp"
 #include "element.hpp"
+#include "resources.hpp"
 
 #include <SDL_events.h>
 #include <components/sdlutil/sdlmappings.hpp>
 #include <ranges>
+
+#include <MyGUI_InputManager.h>
+#include <MyGUI_PointerManager.h>
 
 namespace
 {
@@ -34,6 +38,8 @@ namespace LuaUi
         , mTemplateChild(false)
         , mElementRoot(false)
         , mContentWidget(nullptr)
+        , mCursor("arrow")
+        , mHasCursor(false)
     {
     }
 
@@ -132,6 +138,7 @@ namespace LuaUi
         ext->mParent = this;
         ext->mTemplateChild = false;
         ext->widget()->attachToWidget(mSlot->contentWidget());
+        ext->setInheritedCursor(mCursor);
     }
 
     void WidgetExtension::attachTemplate(WidgetExtension* ext)
@@ -139,6 +146,7 @@ namespace LuaUi
         ext->mParent = this;
         ext->mTemplateChild = true;
         ext->widget()->attachToWidget(widget());
+        ext->setInheritedCursor(mCursor);
     }
 
     void WidgetExtension::detachFromParent()
@@ -200,10 +208,10 @@ namespace LuaUi
     sol::object WidgetExtension::mouseEvent(
         LuaUtil::LuaView& view, int left, int top, MyGUI::MouseButton button = MyGUI::MouseButton::None) const
     {
-        osg::Vec2f position(static_cast<float>(left), static_cast<float>(top));
+        glm::vec2 position(static_cast<float>(left), static_cast<float>(top));
         MyGUI::IntPoint absolutePosition = mWidget->getAbsolutePosition();
-        osg::Vec2f offset = position
-            - osg::Vec2f(static_cast<float>(absolutePosition.left), static_cast<float>(absolutePosition.top));
+        glm::vec2 offset
+            = position - glm::vec2(static_cast<float>(absolutePosition.left), static_cast<float>(absolutePosition.top));
         sol::table table = view.newTable();
         int sdlButton = SDLUtil::myGuiMouseButtonToSdl(button);
         table["position"] = position;
@@ -323,7 +331,12 @@ namespace LuaUi
         mVisible = propertyValue("visible", true);
         mWidget->setVisible(mVisible);
         mWidget->setNeedMouseFocus(!propertyValue("ignorePointerEvents", false));
-        mWidget->setPointer(propertyValue("pointer", std::string("arrow")));
+        CursorResource* cursor = propertyValue<CursorResource*>("cursor", nullptr);
+        mHasCursor = cursor != nullptr;
+        if (mHasCursor)
+            setCursor(cursor->mName);
+        else
+            setInheritedCursor(mParent ? mParent->mCursor : "arrow");
         mWidget->setAlpha(propertyValue("alpha", 1.f));
         mWidget->setInheritsAlpha(propertyValue("inheritAlpha", true));
         parsePadding();
@@ -333,8 +346,34 @@ namespace LuaUi
     {
         mPadding = Padding();
         const LuaUtil::Vec4 value = propertyValue("padding", LuaUtil::Vec4());
-        mPadding = Padding{ static_cast<int>(value.x()), static_cast<int>(value.y()), static_cast<int>(value.z()),
-            static_cast<int>(value.w()) };
+        mPadding = Padding{ static_cast<int>(value.x), static_cast<int>(value.y), static_cast<int>(value.z),
+            static_cast<int>(value.w) };
+    }
+
+    bool WidgetExtension::setCursor(const std::string& cursor)
+    {
+        if (mCursor == cursor)
+            return false;
+
+        mCursor = cursor;
+        mWidget->setPointer(mCursor);
+        for (WidgetExtension* child : mTemplateChildren)
+            child->setInheritedCursor(mCursor);
+        for (WidgetExtension* child : mChildren)
+            child->setInheritedCursor(mCursor);
+        return true;
+    }
+
+    bool WidgetExtension::setInheritedCursor(const std::string& cursor)
+    {
+        return setCursor(mHasCursor ? mCursor : cursor);
+    }
+
+    void WidgetExtension::refreshCursor()
+    {
+        MyGUI::Widget* focused = MyGUI::InputManager::getInstance().getMouseFocusWidget();
+        if (WidgetExtension* extension = dynamic_cast<WidgetExtension*>(focused))
+            MyGUI::PointerManager::getInstance().setPointer(extension->mCursor);
     }
 
     void WidgetExtension::updateChildrenCoord()
@@ -498,7 +537,7 @@ namespace LuaUi
             "anchor",
             "visible",
             "ignorePointerEvents",
-            "pointer",
+            "cursor",
             "alpha",
             "inheritAlpha",
             "padding",
@@ -572,8 +611,8 @@ namespace LuaUi
         protectedCall([=, this](LuaUtil::LuaView& view) {
             propagateEvent("mouseWheel", [&](auto w) {
                 sol::table event = view.newTable();
-                event["position"] = osg::Vec2f(left, top);
-                event["delta"] = osg::Vec2f(x, y);
+                event["position"] = glm::vec2(left, top);
+                event["delta"] = glm::vec2(x, y);
                 return event;
             });
         });

@@ -4,10 +4,6 @@
 #include <memory>
 #include <vector>
 
-#include <osg/Group>
-#include <osg/Stats>
-#include <osg/Timer>
-
 #include <BulletCollision/BroadphaseCollision/btDbvtBroadphase.h>
 #include <BulletCollision/CollisionDispatch/btCollisionObject.h>
 #include <BulletCollision/CollisionDispatch/btCollisionWorld.h>
@@ -16,6 +12,7 @@
 #include <BulletCollision/CollisionShapes/btSphereShape.h>
 #include <BulletCollision/CollisionShapes/btStaticPlaneShape.h>
 
+#include <LinearMath/btIDebugDraw.h>
 #include <LinearMath/btQuickprof.h>
 #include <LinearMath/btVector3.h>
 
@@ -39,8 +36,6 @@
 #include "../mwworld/cellstore.hpp"
 #include "../mwworld/esmstore.hpp"
 #include "../mwworld/player.hpp"
-
-#include "../mwrender/bulletdebugdraw.hpp"
 
 #include "../mwworld/class.hpp"
 
@@ -92,7 +87,7 @@ namespace
 
 namespace MWPhysics
 {
-    PhysicsSystem::PhysicsSystem(Resource::ResourceSystem* resourceSystem, osg::ref_ptr<osg::Group> parentNode)
+    PhysicsSystem::PhysicsSystem(Resource::ResourceSystem* resourceSystem, std::unique_ptr<btIDebugDraw> debugDrawer)
         : mPhysicsDt(1.f / 60.f)
         , mShapeManager(std::make_unique<Resource::BulletShapeManager>(resourceSystem->getVFS(),
               resourceSystem->getSceneManager(), resourceSystem->getNifFileManager(),
@@ -103,7 +98,7 @@ namespace MWPhysics
         , mProjectileId(0)
         , mWaterHeight(0)
         , mWaterEnabled(false)
-        , mParentNode(std::move(parentNode))
+        , mDebugDrawer(std::move(debugDrawer))
     {
         mResourceSystem->addResourceManager(mShapeManager.get());
 
@@ -130,8 +125,7 @@ namespace MWPhysics
             }
         }
 
-        mDebugDrawer = std::make_unique<MWRender::DebugDrawer>(mParentNode, mCollisionWorld.get(), mDebugDrawEnabled);
-        mTaskScheduler = std::make_unique<PhysicsTaskScheduler>(mPhysicsDt, mCollisionWorld.get(), mDebugDrawer.get());
+        mTaskScheduler = std::make_unique<PhysicsTaskScheduler>(mPhysicsDt, mCollisionWorld.get());
     }
 
     PhysicsSystem::~PhysicsSystem()
@@ -692,8 +686,8 @@ namespace MWPhysics
         }
     }
 
-    void PhysicsSystem::stepSimulation(
-        float dt, bool skipSimulation, osg::Timer_t frameStart, unsigned int frameNumber, osg::Stats& stats)
+    void PhysicsSystem::stepSimulation(float dt, bool skipSimulation, Misc::FrameClock::time_point statsEpoch,
+        unsigned int frameNumber, Misc::FrameStats& stats)
     {
         for (auto& [animatedObject, changed] : mAnimatedObjects)
         {
@@ -726,7 +720,7 @@ namespace MWPhysics
             std::vector<Simulation>& simulations = mSimulations[mSimulationsCounter++ % mSimulations.size()];
             prepareSimulation(mTimeAccum >= mPhysicsDt, simulations);
             // modifies mTimeAccum
-            mTaskScheduler->applyQueuedMovements(mTimeAccum, simulations, frameStart, frameNumber, stats);
+            mTaskScheduler->applyQueuedMovements(mTimeAccum, simulations, statsEpoch, frameNumber, stats);
         }
     }
 
@@ -863,7 +857,7 @@ namespace MWPhysics
         return callback.getResult();
     }
 
-    void PhysicsSystem::reportStats(unsigned int frameNumber, osg::Stats& stats) const
+    void PhysicsSystem::reportStats(unsigned int frameNumber, Misc::FrameStats& stats) const
     {
         stats.setAttribute(frameNumber, "Physics Actors", static_cast<double>(mActors.size()));
         stats.setAttribute(frameNumber, "Physics Objects", static_cast<double>(mObjects.size()));
@@ -874,7 +868,7 @@ namespace MWPhysics
     void PhysicsSystem::reportCollision(const btVector3& position, const btVector3& normal)
     {
         if (mDebugDrawEnabled)
-            mDebugDrawer->addCollision(position, normal);
+            mDebugDrawer->drawContactPoint(position, normal, 0, 0, btVector3(1, 0, 0));
     }
 
     ActorFrameData::ActorFrameData(

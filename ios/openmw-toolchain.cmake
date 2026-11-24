@@ -19,7 +19,7 @@ endif()
 set(_ios_deps "${CMAKE_CURRENT_LIST_DIR}/../ios-deps/build")
 set(CMAKE_FIND_ROOT_PATH)
 foreach(_dep sdl2 mesa osg libpng libjpeg-turbo freetype lz4 boost yaml-cpp bullet mygui recastnavigation icu ffmpeg
-        openal-soft)
+        openal-soft glm)
     list(APPEND CMAKE_FIND_ROOT_PATH "${_ios_deps}/${_dep}/${_ios_target}/install")
 endforeach()
 list(APPEND CMAKE_FIND_ROOT_PATH "${_ios_deps}/luajit/${_ios_target}")  # include/luajit-2.1, lib (no install tree)

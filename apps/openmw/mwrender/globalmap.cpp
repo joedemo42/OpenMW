@@ -8,6 +8,7 @@
 #include <osgDB/WriteFile>
 
 #include <components/files/memorystream.hpp>
+#include <components/myguiplatform/myguitexture.hpp>
 #include <components/settings/values.hpp>
 
 #include <components/debug/debuglog.hpp>
@@ -31,6 +32,7 @@
 
 #include "../mwworld/esmstore.hpp"
 
+#include "localmap.hpp"
 #include "vismask.hpp"
 
 namespace
@@ -243,7 +245,7 @@ namespace MWRender
         void doWork() override { mImageData = writePng(*mOverlayImage); }
     };
 
-    GlobalMap::GlobalMap(osg::Group* root, SceneUtil::WorkQueue* workQueue)
+    GlobalMap::GlobalMap(osg::Group* root, const std::shared_ptr<SceneUtil::WorkQueue>& workQueue)
         : mRoot(new osg::Group)
         , mWorkQueue(workQueue)
         , mWidth(0)
@@ -317,7 +319,7 @@ namespace MWRender
                 + std::to_string(colorLut ? colorLut->s() : 0) + "x" + std::to_string(colorLut ? colorLut->t() : 0));
         }
 
-        mWorkItem = new CreateMapWorkItem(
+        mWorkItem = std::make_shared<CreateMapWorkItem>(
             mWidth, mHeight, mMinX, mMinY, mMaxX, mMaxY, cellSize, esmStore.get<ESM::Land>(), colorLut);
         mWorkQueue->addWorkItem(mWorkItem);
     }
@@ -415,10 +417,11 @@ namespace MWRender
         mActiveCameras.push_back(camera);
     }
 
-    void GlobalMap::exploreCell(int cellX, int cellY, osg::ref_ptr<osg::Texture2D> localMapTexture)
+    void GlobalMap::exploreCell(int cellX, int cellY, LocalMap& localMap)
     {
         ensureLoaded();
 
+        osg::ref_ptr<osg::Texture2D> localMapTexture = localMap.getMapTexture(cellX, cellY);
         if (!localMapTexture)
             return;
 
@@ -577,16 +580,16 @@ namespace MWRender
         }
     }
 
-    osg::ref_ptr<osg::Texture2D> GlobalMap::getBaseTexture()
+    std::unique_ptr<MyGUI::ITexture> GlobalMap::makeBaseGuiTexture()
     {
         ensureLoaded();
-        return mBaseTexture;
+        return std::make_unique<MyGUIPlatform::OSGTexture>(mBaseTexture);
     }
 
-    osg::ref_ptr<osg::Texture2D> GlobalMap::getOverlayTexture()
+    std::unique_ptr<MyGUI::ITexture> GlobalMap::makeOverlayGuiTexture()
     {
         ensureLoaded();
-        return mOverlayTexture;
+        return std::make_unique<MyGUIPlatform::OSGTexture>(mOverlayTexture);
     }
 
     void GlobalMap::ensureLoaded()
@@ -660,7 +663,7 @@ namespace MWRender
         if (mOverlayImage == nullptr)
             return;
         // Use deep copy to avoid any sychronization
-        mWritePng = new WritePng(new osg::Image(*mOverlayImage, osg::CopyOp::DEEP_COPY_ALL));
+        mWritePng = std::make_shared<WritePng>(new osg::Image(*mOverlayImage, osg::CopyOp::DEEP_COPY_ALL));
         mWorkQueue->addWorkItem(mWritePng, /*front=*/true);
     }
 }

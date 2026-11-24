@@ -89,6 +89,7 @@ namespace ESM4
     struct Container;
     struct Creature;
     struct Door;
+    struct Eyes;
     struct Flora;
     struct Furniture;
     struct Hair;
@@ -147,7 +148,7 @@ namespace MWWorld
 
             Store<ESM4::Activator>, Store<ESM4::ActorCharacter>, Store<ESM4::ActorCreature>, Store<ESM4::Ammunition>,
             Store<ESM4::Armor>, Store<ESM4::ArmorAddon>, Store<ESM4::Book>, Store<ESM4::Cell>, Store<ESM4::Clothing>,
-            Store<ESM4::Container>, Store<ESM4::Creature>, Store<ESM4::Door>, Store<ESM4::Furniture>,
+            Store<ESM4::Container>, Store<ESM4::Creature>, Store<ESM4::Door>, Store<ESM4::Eyes>, Store<ESM4::Furniture>,
             Store<ESM4::Flora>, Store<ESM4::Hair>, Store<ESM4::HeadPart>, Store<ESM4::Ingredient>, Store<ESM4::ItemMod>,
             Store<ESM4::Land>, Store<ESM4::LandTexture>, Store<ESM4::LevelledCreature>, Store<ESM4::LevelledItem>,
             Store<ESM4::LevelledNpc>, Store<ESM4::Light>, Store<ESM4::MiscItem>, Store<ESM4::MovableStatic>,
@@ -183,7 +184,7 @@ namespace MWWorld
         /// Validate entries in store after setup
         void validate();
 
-        void countAllCellRefsAndMarkKeys(ESM::ReadersCache& readers);
+        void countAllCellRefsAndMarkKeys(ESM::ReadersCache& readers, Loading::Listener* listener);
 
         template <class T>
         void removeMissingObjects(Store<T>& store);
@@ -293,7 +294,7 @@ namespace MWWorld
         // This method must be called once, after loading all master/plugin files. This can only be done
         //  from the outside, so it must be public.
         void setUp();
-        void validateRecords(ESM::ReadersCache& readers);
+        void validateRecords(ESM::ReadersCache& readers, Loading::Listener* listener);
 
         size_t countSavedGameRecords() const;
 

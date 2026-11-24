@@ -1,12 +1,12 @@
 #include "objects.hpp"
 
 #include <osg/Group>
-#include <osg/UserDataContainer>
 
 #include <components/misc/resourcehelpers.hpp>
 #include <components/misc/strings/algorithm.hpp>
 #include <components/sceneutil/positionattitudetransform.hpp>
 #include <components/sceneutil/unrefqueue.hpp>
+#include <components/sceneutil/userdata.hpp>
 
 #include "../mwworld/class.hpp"
 #include "../mwworld/ptr.hpp"
@@ -57,7 +57,7 @@ namespace MWRender
         osg::ref_ptr<SceneUtil::PositionAttitudeTransform> insert(new SceneUtil::PositionAttitudeTransform);
         cellnode->addChild(insert);
 
-        insert->getOrCreateUserDataContainer()->addUserObject(new PtrHolder(ptr));
+        SceneUtil::addUserData(*insert, ptr);
 
         const float* f = ptr.getRefData().getPosition().pos;
 
@@ -85,10 +85,8 @@ namespace MWRender
                 animated = false;
         }
 
-        osg::ref_ptr<ObjectAnimation> anim(
-            new ObjectAnimation(ptr, animationMesh, mResourceSystem, animated, allowLight));
-
-        mObjects.emplace(ptr.mRef, std::move(anim));
+        mObjects.emplace(
+            ptr.mRef, std::make_unique<ObjectAnimation>(ptr, animationMesh, mResourceSystem, animated, allowLight));
     }
 
     void Objects::insertCreature(const MWWorld::Ptr& ptr, const std::string& mesh, bool weaponsShields)
@@ -103,15 +101,16 @@ namespace MWRender
             animated = false;
 
         // CreatureAnimation
-        osg::ref_ptr<Animation> anim;
+        std::unique_ptr<ActorAnimation> anim;
 
         if (weaponsShields)
-            anim = new CreatureWeaponAnimation(ptr, animationMesh, mResourceSystem, animated);
+            anim = std::make_unique<CreatureWeaponAnimation>(ptr, animationMesh, mResourceSystem, animated);
         else
-            anim = new CreatureAnimation(ptr, animationMesh, mResourceSystem, animated);
+            anim = std::make_unique<CreatureAnimation>(ptr, animationMesh, mResourceSystem, animated);
 
-        if (mObjects.emplace(ptr.mRef, anim).second)
-            ptr.getClass().getContainerStore(ptr).setContListener(static_cast<ActorAnimation*>(anim.get()));
+        ActorAnimation* listener = anim.get();
+        if (mObjects.emplace(ptr.mRef, std::move(anim)).second)
+            ptr.getClass().getContainerStore(ptr).setContListener(listener);
     }
 
     void Objects::insertNPC(const MWWorld::Ptr& ptr)
@@ -121,19 +120,20 @@ namespace MWRender
 
         if (ptr.getType() == ESM::REC_NPC_4)
         {
-            osg::ref_ptr<ESM4NpcAnimation> anim(
-                new ESM4NpcAnimation(ptr, osg::ref_ptr<osg::Group>(ptr.getRefData().getBaseNode()), mResourceSystem));
-            mObjects.emplace(ptr.mRef, anim);
+            mObjects.emplace(ptr.mRef,
+                std::make_unique<ESM4NpcAnimation>(
+                    ptr, osg::ref_ptr<osg::Group>(ptr.getRefData().getBaseNode()), mResourceSystem));
         }
         else
         {
-            osg::ref_ptr<NpcAnimation> anim(
-                new NpcAnimation(ptr, osg::ref_ptr<osg::Group>(ptr.getRefData().getBaseNode()), mResourceSystem));
+            auto anim = std::make_unique<NpcAnimation>(
+                ptr, osg::ref_ptr<osg::Group>(ptr.getRefData().getBaseNode()), mResourceSystem);
 
-            if (mObjects.emplace(ptr.mRef, anim).second)
+            NpcAnimation* listener = anim.get();
+            if (mObjects.emplace(ptr.mRef, std::move(anim)).second)
             {
-                ptr.getClass().getInventoryStore(ptr).setInvListener(anim.get());
-                ptr.getClass().getInventoryStore(ptr).setContListener(anim.get());
+                ptr.getClass().getInventoryStore(ptr).setInvListener(listener);
+                ptr.getClass().getInventoryStore(ptr).setContListener(listener);
             }
         }
     }
@@ -216,13 +216,8 @@ namespace MWRender
             cellnode = mCellSceneNodes[newCell];
         }
 
-        osg::UserDataContainer* userDataContainer = objectNode->getUserDataContainer();
-        if (userDataContainer)
-            for (unsigned int i = 0; i < userDataContainer->getNumUserObjects(); ++i)
-            {
-                if (dynamic_cast<PtrHolder*>(userDataContainer->getUserObject(i)))
-                    userDataContainer->setUserObject(i, new PtrHolder(cur));
-            }
+        if (MWWorld::Ptr* ptr = SceneUtil::findUserData<MWWorld::Ptr>(*objectNode))
+            *ptr = cur;
 
         if (objectNode->getNumParents())
             objectNode->getParent(0)->removeChild(objectNode);
@@ -237,7 +232,7 @@ namespace MWRender
     {
         PtrAnimationMap::const_iterator iter = mObjects.find(ptr.mRef);
         if (iter != mObjects.end())
-            return iter->second;
+            return iter->second.get();
 
         return nullptr;
     }
@@ -246,7 +241,7 @@ namespace MWRender
     {
         PtrAnimationMap::const_iterator iter = mObjects.find(ptr.mRef);
         if (iter != mObjects.end())
-            return iter->second;
+            return iter->second.get();
 
         return nullptr;
     }

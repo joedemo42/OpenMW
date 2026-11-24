@@ -6,7 +6,6 @@
 #include <functional>
 
 #include <MyGUI_InputManager.h>
-#include <osg/Stats>
 
 #include <sol/object.hpp>
 #include <sol/table.hpp>
@@ -15,9 +14,11 @@
 #include <components/debug/debuglog.hpp>
 
 #include <components/esm/luascripts.hpp>
+#include <components/esm3/effectlist.hpp>
 #include <components/esm3/esmreader.hpp>
 #include <components/esm3/esmwriter.hpp>
 
+#include <components/misc/framestats.hpp>
 #include <components/settings/values.hpp>
 
 #include <components/l10n/manager.hpp>
@@ -25,6 +26,8 @@
 #include <components/lua/util.hpp>
 #include <components/lua_ui/registerscriptsettings.hpp>
 #include <components/lua_ui/util.hpp>
+
+#include <components/misc/convert.hpp>
 
 #include "../mwbase/windowmanager.hpp"
 #include "../mwbase/world.hpp"
@@ -279,15 +282,16 @@ namespace MWLua
         MWWorld::DateTimeManager& timeManager = *MWBase::Environment::get().getWorld()->getTimeManager();
         const double realTime = LuaUtil::getRealTime();
 
-        double simulationTime = timeManager.isPaused() ? 0 : timeManager.getSimulationTime();
-        double gameTime = timeManager.isPaused() ? 0 : timeManager.getGameTime();
+        const bool timersPaused = timeManager.isPaused();
+        const double simulationTime = timeManager.getSimulationTime();
+        const double gameTime = timeManager.getGameTime();
 
         // Always process real-time timers (runs even when paused), but only process game/simulation timers when not
         // paused
-        mMenuScripts.processTimers(simulationTime, gameTime, realTime);
-        mGlobalScripts.processTimers(simulationTime, gameTime, realTime);
+        mMenuScripts.processTimers(simulationTime, gameTime, realTime, timersPaused);
+        mGlobalScripts.processTimers(simulationTime, gameTime, realTime, timersPaused);
         forEachActive(mActiveLocalScripts,
-            [&](LocalScripts* scripts) { scripts->processTimers(simulationTime, gameTime, realTime); });
+            [&](LocalScripts* scripts) { scripts->processTimers(simulationTime, gameTime, realTime, timersPaused); });
 
         // Run event handlers for events that were sent before `finalizeEventBatch`.
         mLuaEvents.callEventHandlers();
@@ -424,7 +428,9 @@ namespace MWLua
         mActionQueue.clear();
         mTeleportPlayerAction.reset();
         LuaUi::clearGameInterface();
-        mUiResourceManager.clear();
+        for (const std::string& name : mUiResourceManager.gameCursorNames())
+            MWBase::Environment::get().getWindowManager()->removeLuaCursor(name);
+        mUiResourceManager.clearGameResources();
         MWBase::Environment::get().getWorld()->getPostProcessor()->disableDynamicShaders();
         mActiveLocalScripts.clear();
         mLuaEvents.clear();
@@ -561,15 +567,17 @@ namespace MWLua
     }
 
     void LuaManager::applyMagicEffects(ESM::RefId id, const MWWorld::Ptr& caster, ESM::RefNum item,
-        const MWWorld::Ptr& target, const std::vector<int>& effects, bool ignoreReflect, bool ignoreSpellAbsorption,
-        bool stackable, bool isReflect)
+        const MWWorld::Ptr& target, const std::vector<ESM::IndexedENAMstruct>& effects, bool ignoreReflect,
+        bool ignoreSpellAbsorption, bool stackable, bool isReflect)
     {
         if (!target.isEmpty() && !effects.empty())
         {
             mLua.protectedCall([&](LuaUtil::LuaView& view) {
+                // Preserve calculated magnitudes and durations, e.g. when consuming an ingredient.
                 sol::table luaEffects = view.newTable();
-                for (int i = 1; i <= static_cast<int>(effects.size()); i++)
-                    luaEffects[i] = effects[i - 1];
+                for (const ESM::IndexedENAMstruct& enam : effects)
+                    luaEffects.add(view.sol().create_table_with("index", enam.mIndex, "magnitudeMin",
+                        enam.mData.mMagnMin, "magnitudeMax", enam.mData.mMagnMax, "duration", enam.mData.mDuration));
                 sol::table data = view.newTable();
                 if (!caster.isEmpty())
                     data["caster"] = LObject(caster);
@@ -595,8 +603,8 @@ namespace MWLua
             sol::table hitResult = view.newTable();
             sol::table spellcast = view.newTable();
             hitResult["hit"] = true;
-            hitResult["hitPos"] = position;
-            hitResult["hitNormal"] = normal;
+            hitResult["hitPos"] = Misc::Convert::toGlm(position);
+            hitResult["hitNormal"] = Misc::Convert::toGlm(normal);
             if (!victim.isEmpty())
                 hitResult["hitObject"] = GObject(victim);
             spellcast["id"] = spellId.serializeText();
@@ -621,16 +629,16 @@ namespace MWLua
         const MWWorld::Ptr& object, const MWWorld::Ptr& actor, const osg::Vec3f& position, const osg::Quat& rotation)
     {
         MWBase::Environment::get().getWorldModel()->registerPtr(object);
-        mEngineEvents.addToQueue(
-            EngineEvents::OnDropped{ getId(object), getId(actor), position, LuaUtil::asTransform(rotation) });
+        mEngineEvents.addToQueue(EngineEvents::OnDropped{ getId(object), getId(actor), Misc::Convert::toGlm(position),
+            LuaUtil::asTransform(Misc::Convert::toGlm(rotation)) });
     }
 
     void LuaManager::objectPlaced(
         const MWWorld::Ptr& object, const MWWorld::Ptr& actor, const osg::Vec3f& position, const osg::Quat& rotation)
     {
         MWBase::Environment::get().getWorldModel()->registerPtr(object);
-        mEngineEvents.addToQueue(
-            EngineEvents::OnPlaced{ getId(object), getId(actor), position, LuaUtil::asTransform(rotation) });
+        mEngineEvents.addToQueue(EngineEvents::OnPlaced{ getId(object), getId(actor), Misc::Convert::toGlm(position),
+            LuaUtil::asTransform(Misc::Convert::toGlm(rotation)) });
     }
 
     void LuaManager::animationTextKey(const MWWorld::Ptr& actor, const std::string& key)
@@ -723,7 +731,7 @@ namespace MWLua
             data["strength"] = attackStrength;
             data["windUp"] = attackWindUp;
             data["damage"] = damageTable;
-            data["hitPos"] = hitPos;
+            data["hitPos"] = Misc::Convert::toGlm(hitPos);
             data["successful"] = successful;
             switch (sourceType)
             {
@@ -923,6 +931,8 @@ namespace MWLua
         LuaUi::clearSettings();
         MWBase::Environment::get().getWindowManager()->setConsoleMode("");
         MWBase::Environment::get().getL10nManager()->dropCache();
+        for (const std::string& name : mUiResourceManager.cursorNames())
+            MWBase::Environment::get().getWindowManager()->removeLuaCursor(name);
         mUiResourceManager.clear();
         mLua.dropScriptCache();
         mInputActions.clear(true);
@@ -1037,7 +1047,7 @@ namespace MWLua
         mTeleportPlayerAction = DelayedAction(&mLua, std::move(action), "TeleportPlayer");
     }
 
-    void LuaManager::reportStats(unsigned int frameNumber, osg::Stats& stats) const
+    void LuaManager::reportStats(unsigned int frameNumber, Misc::FrameStats& stats) const
     {
         stats.setAttribute(frameNumber, "Lua UsedMemory", static_cast<double>(mLua.getTotalMemoryUsage()));
     }

@@ -2,8 +2,7 @@
 
 #include <cassert>
 
-#include <osg/Stats>
-
+#include <components/misc/framestats.hpp>
 #include <components/misc/rng.hpp>
 
 #include <components/esm/records.hpp>
@@ -39,6 +38,7 @@
 #include "autocalcspell.hpp"
 #include "combat.hpp"
 #include "npcstats.hpp"
+#include "spelleffects.hpp"
 #include "spellutil.hpp"
 
 namespace
@@ -845,6 +845,8 @@ namespace MWMechanics
         mUpdatePlayer = true;
         mClassSelected = true;
         mRaceSelected = true;
+
+        restoreMagicSound(getPlayer());
     }
 
     namespace
@@ -1545,7 +1547,7 @@ namespace MWMechanics
                     // Force friendly actors into combat to prevent infighting between followers
                     for (const auto& follower : cachedAllies.getActorsSidingWith(target))
                     {
-                        if (follower != attacker && follower != player)
+                        if (follower != attacker && follower != player && mActors.isActive(follower))
                             startCombat(follower, attacker, &attackerAllies);
                     }
                 }
@@ -1990,7 +1992,7 @@ namespace MWMechanics
         mActors.cleanupSummonedCreature(creature);
     }
 
-    void MechanicsManager::reportStats(unsigned int frameNumber, osg::Stats& stats) const
+    void MechanicsManager::reportStats(unsigned int frameNumber, Misc::FrameStats& stats) const
     {
         stats.setAttribute(frameNumber, "Mechanics Actors", static_cast<double>(mActors.size()));
         stats.setAttribute(frameNumber, "Mechanics Objects", static_cast<double>(mObjects.size()));

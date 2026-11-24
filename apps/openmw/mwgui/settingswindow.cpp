@@ -1,6 +1,7 @@
 #include "settingswindow.hpp"
 
 #include <array>
+#include <cmath>
 
 #include <unicode/locid.h>
 
@@ -97,16 +98,17 @@ namespace
         return widget->getUserString("SettingValueType");
     }
 
-    void getSettingMinMax(MyGUI::Widget* widget, float& min, float& max)
+    template <class T>
+    void getSettingMinMax(MyGUI::Widget* widget, T& min, T& max)
     {
         const char* settingMin = "SettingMin";
         const char* settingMax = "SettingMax";
-        min = 0.f;
-        max = 1.f;
+        min = 0;
+        max = 1;
         if (!widget->getUserString(settingMin).empty())
-            min = MyGUI::utility::parseFloat(widget->getUserString(settingMin));
+            min = MyGUI::utility::parseValue<T>(widget->getUserString(settingMin));
         if (!widget->getUserString(settingMax).empty())
-            max = MyGUI::utility::parseFloat(widget->getUserString(settingMax));
+            max = MyGUI::utility::parseValue<T>(widget->getUserString(settingMax));
     }
 
     void updateMaxLightsComboBox(MyGUI::ComboBox* box)
@@ -220,7 +222,7 @@ namespace MWGui
                 std::string_view valueType = getSettingValueType(current);
                 std::vector<icu::UnicodeString> argNames;
                 std::vector<icu::Formattable> args;
-                if (valueType == "Float" || valueType == "Integer" || valueType == "Cell")
+                if (valueType == "Float" || valueType == "Cell")
                 {
                     // TODO: ScrollBar isn't meant for this. should probably use a dedicated FloatSlider widget
                     float min, max;
@@ -233,24 +235,26 @@ namespace MWGui
                         argNames.emplace_back("cells");
                         args.emplace_back(value / Constants::CellSizeInUnits);
                     }
-                    else if (valueType == "Float")
+                    else
                     {
                         value = Settings::get<float>(getSettingCategory(current), getSettingName(current));
                         argNames.emplace_back("value");
                         args.emplace_back(value);
                     }
-                    else
-                    {
-                        const int intValue = Settings::get<int>(getSettingCategory(current), getSettingName(current));
-                        argNames.emplace_back("value");
-                        args.emplace_back(intValue);
-                        value = static_cast<float>(intValue);
-                    }
 
                     value = std::clamp(value, min, max);
                     value = (value - min) / (max - min);
 
-                    scroll->setScrollPosition(static_cast<size_t>(value * (scroll->getScrollRange() - 1)));
+                    scroll->setScrollPosition(static_cast<size_t>(std::round(value * (scroll->getScrollRange() - 1))));
+                }
+                else if (valueType == "Integer")
+                {
+                    int min, max;
+                    getSettingMinMax(scroll, min, max);
+                    const int value = Settings::get<int>(getSettingCategory(current), getSettingName(current));
+                    argNames.emplace_back("value");
+                    args.emplace_back(value);
+                    scroll->setScrollPosition(static_cast<size_t>(std::clamp(value, min, max) - min));
                 }
                 else
                 {
@@ -346,6 +350,7 @@ namespace MWGui
         getWidget(mPlayerShadowsButton, "PlayerShadowsButton");
         getWidget(mTerrainShadowsButton, "TerrainShadowsButton");
         getWidget(mObjectShadowsButton, "ObjectShadowsButton");
+        getWidget(mShadowPlanesComputationMethod, "ShadowPlanesComputationMethod");
         getWidget(mShadowMapResolution, "ShadowMapResolution");
 
 #ifndef WIN32
@@ -405,6 +410,8 @@ namespace MWGui
             += MyGUI::newDelegate(this, &SettingsWindow::onShadowsButtonClicked);
         mObjectShadowsButton->eventMouseButtonClick
             += MyGUI::newDelegate(this, &SettingsWindow::onShadowsButtonClicked);
+        mShadowPlanesComputationMethod->eventComboChangePosition
+            += MyGUI::newDelegate(this, &SettingsWindow::onComputeSceneBoundsChanged);
         mShadowMapResolution->eventComboChangePosition
             += MyGUI::newDelegate(this, &SettingsWindow::onShadowMapResolutionChanged);
 
@@ -473,6 +480,14 @@ namespace MWGui
         mWaterRainRippleDetail->setIndexSelected(waterRainRippleDetail);
 
         updateMaxLightsComboBox(mMaxLights);
+
+        const std::string& shadowMethod = Settings::shadows().mComputeSceneBounds;
+        if (shadowMethod == "bounds")
+            mShadowPlanesComputationMethod->setIndexSelected(0);
+        else if (shadowMethod == "primitives")
+            mShadowPlanesComputationMethod->setIndexSelected(1);
+        else
+            mShadowPlanesComputationMethod->setIndexSelected(2);
 
         updateShadowMapResolutionComboBox(mShadowMapResolution);
 
@@ -731,6 +746,7 @@ namespace MWGui
 
         Settings::shaders().mForcePerPixelLighting.reset();
         Settings::shaders().mClassicFalloff.reset();
+        Settings::shaders().mParticlePointLighting.reset();
         Settings::shaders().mClampLighting.reset();
         Settings::shaders().mMatchSunlightToSun.reset();
         Settings::shaders().mLightRadiusMultiplier.reset();
@@ -832,6 +848,38 @@ namespace MWGui
         apply();
     }
 
+    void SettingsWindow::onComputeSceneBoundsChanged(MyGUI::ComboBox* sender, size_t pos)
+    {
+        if (pos == MyGUI::ITEM_NONE)
+            return;
+
+        if (pos == 1 && mShowShadowPlanesMethodWarning)
+        {
+            MWBase::Environment::get().getWindowManager()->interactiveMessageBox(
+                "#{OMWEngine:ShadowPlanesComputationMethodWarning}", { "#{Interface:OK}" }, true);
+            mShowShadowPlanesMethodWarning = false;
+        }
+
+        auto& shadowSettings = Settings::shadows();
+        switch (pos)
+        {
+            case 0:
+                shadowSettings.mComputeSceneBounds.set("bounds");
+                break;
+            case 1:
+                shadowSettings.mComputeSceneBounds.set("primitives");
+                break;
+            case 2:
+                shadowSettings.mComputeSceneBounds.set("none");
+                break;
+            default:
+                Log(Debug::Warning) << "Unexpected shadow planes computation method pos " << pos;
+                break;
+        }
+
+        apply();
+    }
+
     void SettingsWindow::onShadowMapResolutionChanged(MyGUI::ComboBox* sender, size_t pos)
     {
         if (pos == MyGUI::ITEM_NONE)
@@ -880,7 +928,7 @@ namespace MWGui
             std::vector<icu::UnicodeString> argNames;
             std::vector<icu::Formattable> args;
             std::string_view valueType = getSettingValueType(scroller);
-            if (valueType == "Float" || valueType == "Integer" || valueType == "Cell")
+            if (valueType == "Float" || valueType == "Cell")
             {
                 float value = pos / float(scroller->getScrollRange() - 1);
 
@@ -894,19 +942,21 @@ namespace MWGui
                     argNames.emplace_back("cells");
                     args.emplace_back(value / Constants::CellSizeInUnits);
                 }
-                else if (valueType == "Float")
+                else
                 {
                     Settings::get<float>(getSettingCategory(scroller), getSettingName(scroller)).set(value);
                     argNames.emplace_back("value");
                     args.emplace_back(value);
                 }
-                else
-                {
-                    int intValue = static_cast<int>(value);
-                    Settings::get<int>(getSettingCategory(scroller), getSettingName(scroller)).set(intValue);
-                    argNames.emplace_back("value");
-                    args.emplace_back(intValue);
-                }
+            }
+            else if (valueType == "Integer")
+            {
+                int min, max;
+                getSettingMinMax(scroller, min, max);
+                const int value = min + static_cast<int>(pos);
+                Settings::get<int>(getSettingCategory(scroller), getSettingName(scroller)).set(value);
+                argNames.emplace_back("value");
+                args.emplace_back(value);
             }
             else
             {
@@ -1019,7 +1069,10 @@ namespace MWGui
 
         mWindowModeList->setIndexSelected(windowModeIndex);
 
-        if (windowMode != Settings::WindowMode::Windowed && windowModeIndex != MyGUI::ITEM_NONE)
+        mWindowBorderButton->setEnabled(windowMode == Settings::WindowMode::Windowed);
+
+        // Windowed fullscreen uses the desktop size, which need not match an exclusive fullscreen mode.
+        if (windowMode == Settings::WindowMode::Fullscreen)
         {
             // check if this resolution is supported in fullscreen
             if (mResolutionList->getIndexSelected() != MyGUI::ITEM_NONE)
@@ -1060,8 +1113,6 @@ namespace MWGui
                     Settings::video().mResolutionY.set(fallbackY);
                 }
             }
-
-            mWindowBorderButton->setEnabled(false);
         }
 
         if (windowMode == Settings::WindowMode::WindowedFullscreen)

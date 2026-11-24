@@ -136,7 +136,7 @@ build_openmw() {  # <iphoneos|iphonesimulator>
         # the game only: no launcher, editor, wizard, tools
         -DBUILD_LAUNCHER=OFF -DBUILD_WIZARD=OFF -DBUILD_MWINIIMPORTER=OFF -DBUILD_OPENCS=OFF -DBUILD_ESSIMPORTER=OFF
         -DBUILD_BSATOOL=OFF -DBUILD_ESMTOOL=OFF -DBUILD_NIFTEST=OFF -DBUILD_NAVMESHTOOL=OFF -DBUILD_BULLETOBJECTTOOL=OFF
-        -DOSG_STATIC=ON -DMYGUI_STATIC=ON -DOPENMW_USE_SYSTEM_RECASTNAVIGATION=ON
+        -DOSG_STATIC=ON -DMYGUI_STATIC=ON -DOPENMW_USE_SYSTEM_RECASTNAVIGATION=ON -DOPENMW_USE_SYSTEM_GLM=ON
         # iOS has no OpenGL.framework (Mesa instead); OpenAL Soft, not the SDK's OpenAL.framework
         -DOPENGL_INCLUDE_DIR="$deps/mesa/$target/install/include" -DOPENGL_gl_LIBRARY="$deps/mesa/$target/lib/libMesa.a"
         -DOPENAL_INCLUDE_DIR="$deps/openal-soft/$target/install/include/AL"

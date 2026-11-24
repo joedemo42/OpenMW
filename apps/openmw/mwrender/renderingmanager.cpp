@@ -1,12 +1,16 @@
 #include "renderingmanager.hpp"
 
 #include <cstdlib>
+#include <sstream>
 
 #include <osg/ClipControl>
 #include <osg/ComputeBoundsVisitor>
 #include <osg/Group>
+#include <osg/Image>
 #include <osg/Matrix>
 #include <osg/UserDataContainer>
+
+#include <osgDB/Registry>
 
 #include <osgUtil/LineSegmentIntersector>
 
@@ -37,6 +41,7 @@
 #include <components/sceneutil/shadow.hpp>
 #include <components/sceneutil/stateupdater.hpp>
 #include <components/sceneutil/texmat.hpp>
+#include <components/sceneutil/userdata.hpp>
 #include <components/sceneutil/visitor.hpp>
 #include <components/sceneutil/workqueue.hpp>
 #include <components/sceneutil/writescene.hpp>
@@ -57,6 +62,7 @@
 #include "../mwworld/class.hpp"
 #include "../mwworld/groundcoverstore.hpp"
 #include "../mwworld/scene.hpp"
+#include "../mwworld/weather.hpp"
 
 #include "../mwgui/postprocessorhud.hpp"
 
@@ -68,9 +74,11 @@
 
 #include "actorspaths.hpp"
 #include "camera.hpp"
+#include "characterpreview.hpp"
 #include "effectmanager.hpp"
 #include "fogmanager.hpp"
 #include "groundcover.hpp"
+#include "localmap.hpp"
 #include "navmesh.hpp"
 #include "npcanimation.hpp"
 #include "objectpaging.hpp"
@@ -189,7 +197,7 @@ namespace MWRender
     };
 
     RenderingManager::RenderingManager(osgViewer::Viewer* viewer, osg::ref_ptr<osg::Group> rootNode,
-        Resource::ResourceSystem* resourceSystem, SceneUtil::WorkQueue* workQueue,
+        Resource::ResourceSystem* resourceSystem, const std::shared_ptr<SceneUtil::WorkQueue>& workQueue,
         DetourNavigator::Navigator& navigator, const MWWorld::GroundcoverStore& groundcoverStore,
         SceneUtil::UnrefQueue& unrefQueue)
         : mSkyBlending(Settings::fog().mSkyBlending)
@@ -352,7 +360,7 @@ namespace MWRender
 
         mViewer->setLightingMode(osgViewer::View::NO_LIGHT);
 
-        mSunLight = new SceneUtil::Light;
+        mSunLight = std::make_shared<SceneUtil::Light>();
         mSunLight->setDiffuse(osg::Vec4f(0, 0, 0, 1));
         mSunLight->setAmbient(osg::Vec4f(0, 0, 0, 1));
         mSunLight->setSpecular(osg::Vec4f(0, 0, 0, 0));
@@ -450,9 +458,24 @@ namespace MWRender
         return mResourceSystem;
     }
 
-    SceneUtil::WorkQueue* RenderingManager::getWorkQueue()
+    std::unique_ptr<InventoryPreview> RenderingManager::createInventoryPreview(const MWWorld::Ptr& character)
     {
-        return mWorkQueue.get();
+        return std::make_unique<InventoryPreview>(mRootNode, mResourceSystem, character);
+    }
+
+    std::unique_ptr<RaceSelectionPreview> RenderingManager::createRaceSelectionPreview()
+    {
+        return std::make_unique<RaceSelectionPreview>(mRootNode, mResourceSystem);
+    }
+
+    std::unique_ptr<LocalMap> RenderingManager::createLocalMap()
+    {
+        return std::make_unique<LocalMap>(mRootNode);
+    }
+
+    const std::shared_ptr<SceneUtil::WorkQueue>& RenderingManager::getWorkQueue() const
+    {
+        return mWorkQueue;
     }
 
     Terrain::World* RenderingManager::getTerrain()
@@ -460,9 +483,14 @@ namespace MWRender
         return mTerrain;
     }
 
-    void RenderingManager::preloadCommonAssets()
+    void RenderingManager::preloadCommonAssets(const MWWorld::WeatherStore& weathers)
     {
-        osg::ref_ptr<PreloadCommonAssetsWorkItem> workItem(new PreloadCommonAssetsWorkItem(mResourceSystem));
+        auto workItem = std::make_shared<PreloadCommonAssetsWorkItem>(mResourceSystem);
+        for (const MWWorld::Weather* weather : weathers)
+        {
+            if (!weather->mParticleEffect.empty())
+                workItem->mModels.push_back(weather->mParticleEffect);
+        }
         mSky->listAssetsToPreload(workItem->mModels, workItem->mTextures);
         mWater->listAssetsToPreload(workItem->mTextures);
 
@@ -849,9 +877,40 @@ namespace MWRender
         mPostProcessor->getStateUpdater()->setWaterHeight(height);
     }
 
-    void RenderingManager::screenshot(osg::Image* image, int w, int h)
+    std::vector<char> RenderingManager::screenshot(int w, int h)
     {
-        mScreenshotManager->screenshot(image, w, h);
+        osg::ref_ptr<osg::Image> image(new osg::Image);
+        mScreenshotManager->screenshot(image.get(), w, h);
+
+        osgDB::ReaderWriter* readerwriter = osgDB::Registry::instance()->getReaderWriterForExtension("jpg");
+        if (!readerwriter)
+        {
+            Log(Debug::Error) << "Error: Unable to write screenshot, can't find a jpg ReaderWriter";
+            return {};
+        }
+
+        std::ostringstream ostream;
+        osgDB::ReaderWriter::WriteResult result = readerwriter->writeImage(*image, ostream);
+        if (!result.success())
+        {
+            Log(Debug::Error) << "Error: Unable to write screenshot: " << result.message() << " code "
+                              << result.status();
+            return {};
+        }
+
+        const std::string data = ostream.str();
+        return std::vector<char>(data.begin(), data.end());
+    }
+
+    osg::BoundingBox RenderingManager::getObjectBounds(const MWWorld::Ptr& ptr, unsigned int ignoreMask) const
+    {
+        SceneUtil::PositionAttitudeTransform* baseNode = ptr.getRefData().getBaseNode();
+        if (baseNode == nullptr)
+            return {};
+        osg::ComputeBoundsVisitor computeBounds;
+        computeBounds.setTraversalMask(~ignoreMask);
+        baseNode->accept(computeBounds);
+        return computeBounds.getBoundingBox();
     }
 
     osg::Vec2f RenderingManager::getScreenCoords(const osg::BoundingBox& bb)
@@ -886,8 +945,8 @@ namespace MWRender
             return result;
 
         auto test = [&](const osgUtil::LineSegmentIntersector::Intersection& intersection) {
-            PtrHolder* ptrHolder = nullptr;
-            std::vector<RefnumMarker*> refnumMarkers;
+            const MWWorld::Ptr* hitPtr = nullptr;
+            std::vector<const RefnumMarker*> refnumMarkers;
             bool hitNonObjectWorld = false;
             for (osg::Node* node : intersection.nodePath)
             {
@@ -895,27 +954,16 @@ namespace MWRender
                 if (!hitNonObjectWorld)
                     hitNonObjectWorld = nodeMask & nonObjectWorldMask;
 
-                osg::UserDataContainer* userDataContainer = node->getUserDataContainer();
-                if (!userDataContainer)
-                    continue;
-                for (unsigned int i = 0; i < userDataContainer->getNumUserObjects(); ++i)
-                {
-                    if (PtrHolder* p = dynamic_cast<PtrHolder*>(userDataContainer->getUserObject(i)))
-                    {
-                        if (std::find(ignoreList.begin(), ignoreList.end(), p->mPtr) == ignoreList.end())
-                        {
-                            ptrHolder = p;
-                        }
-                    }
-                    if (RefnumMarker* r = dynamic_cast<RefnumMarker*>(userDataContainer->getUserObject(i)))
-                    {
-                        refnumMarkers.push_back(r);
-                    }
-                }
+                SceneUtil::forEachUserData<MWWorld::Ptr>(*node, [&](const MWWorld::Ptr& ptr) {
+                    if (std::find(ignoreList.begin(), ignoreList.end(), ptr) == ignoreList.end())
+                        hitPtr = &ptr;
+                });
+                SceneUtil::forEachUserData<RefnumMarker>(
+                    *node, [&](const RefnumMarker& marker) { refnumMarkers.push_back(&marker); });
             }
 
-            if (ptrHolder)
-                result.mHitObject = ptrHolder->mPtr;
+            if (hitPtr)
+                result.mHitObject = *hitPtr;
 
             unsigned int vertexCounter = 0;
             for (unsigned int i = 0; i < refnumMarkers.size(); ++i)
@@ -977,20 +1025,8 @@ namespace MWRender
             if (mContainsPagedRefs)
                 return false;
 
-            osg::UserDataContainer* userDataContainer = transform.getUserDataContainer();
-            if (!userDataContainer)
-                return false;
-
-            for (unsigned int i = 0; i < userDataContainer->getNumUserObjects(); ++i)
-            {
-                if (PtrHolder* p = dynamic_cast<PtrHolder*>(userDataContainer->getUserObject(i)))
-                {
-                    if (std::find(mIgnoreList.begin(), mIgnoreList.end(), p->mPtr) != mIgnoreList.end())
-                    {
-                        return true;
-                    }
-                }
-            }
+            if (const MWWorld::Ptr* p = SceneUtil::findUserData<MWWorld::Ptr>(transform))
+                return std::find(mIgnoreList.begin(), mIgnoreList.end(), *p) != mIgnoreList.end();
 
             return false;
         }
@@ -1155,7 +1191,7 @@ namespace MWRender
         }
 
         mPlayerNode->setUserDataContainer(new osg::DefaultUserDataContainer);
-        mPlayerNode->getUserDataContainer()->addUserObject(new PtrHolder(player));
+        SceneUtil::addUserData(*mPlayerNode, player);
 
         player.getRefData().setBaseNode(mPlayerNode);
 
@@ -1165,7 +1201,7 @@ namespace MWRender
 
     void RenderingManager::renderPlayer(const MWWorld::Ptr& player)
     {
-        mPlayerAnimation = new NpcAnimation(player, player.getRefData().getBaseNode(), mResourceSystem, 0,
+        mPlayerAnimation = std::make_unique<NpcAnimation>(player, player.getRefData().getBaseNode(), mResourceSystem, 0,
             NpcAnimation::VM_Normal, mFirstPersonFieldOfView);
 
         mCamera->setAnimation(mPlayerAnimation.get());
@@ -1584,12 +1620,12 @@ namespace MWRender
                     * osg::Quat(rotation[1], osg::Vec3(0, -1, 0)) * osg::Quat(rotation[2], osg::Vec3(0, 0, -1)));
             rootNode->setPosition(ptr.getCellRef().getPosition().asVec3());
 
-            osg::ref_ptr<Animation> animation = nullptr;
+            std::unique_ptr<Animation> animation;
 
             if (ptr.getClass().isNpc())
             {
                 rootNode->setNodeMask(Mask_Actor);
-                animation = new NpcAnimation(ptr, osg::ref_ptr<osg::Group>(rootNode), mResourceSystem);
+                animation = std::make_unique<NpcAnimation>(ptr, osg::ref_ptr<osg::Group>(rootNode), mResourceSystem);
             }
         }
 

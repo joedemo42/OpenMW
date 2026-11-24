@@ -30,7 +30,7 @@ opencs_units (model/world
     )
 
 opencs_hdrs (model/world
-    columnimp disabletag idcollection collection info subcellcollection cell nestedtablewrapper record
+    columnimp disabletag idcollection collection info subcellcollection cell nestedtablewrapper record variantconversion
     )
 
 
@@ -81,7 +81,8 @@ opencs_units (view/world
 
 opencs_units (view/widget
     scenetoolbar scenetool scenetoolmode pushbutton scenetooltoggle scenetoolrun modebutton scenetoolvertexpaintbrush
-    scenetooltoggle2 scenetooltexturebrush scenetoolshapebrush completerpopup coloreditor colorpickerpopup droplineedit
+    scenetooltoggle2 scenetooltexturebrush scenetoolshapebrush scenetoollistpanel completerpopup coloreditor
+    colorpickerpopup droplineedit
     )
 
 opencs_units (view/render
@@ -172,7 +173,7 @@ add_library(openmw-cs-lib STATIC
 )
 
 if(BUILD_OPENCS)
-    openmw_add_executable(openmw-cs
+    openmw_add_qt_executable(openmw-cs
         MACOSX_BUNDLE
         ${OPENCS_MAC_ICON}
         ${OPENCS_CFG}
@@ -182,7 +183,7 @@ if(BUILD_OPENCS)
         main.cpp
     )
 
-    target_link_libraries(openmw-cs openmw-cs-lib)
+    target_link_libraries(openmw-cs PRIVATE openmw-cs-lib)
 
     set_property(TARGET openmw-cs PROPERTY AUTOMOC ON)
     set_property(TARGET openmw-cs PROPERTY AUTOUIC_SEARCH_PATHS ui)
@@ -190,7 +191,7 @@ if(BUILD_OPENCS)
 
     if (BUILD_WITH_CODE_COVERAGE)
         target_compile_options(openmw-cs PRIVATE --coverage)
-        target_link_libraries(openmw-cs gcov)
+        target_link_libraries(openmw-cs PRIVATE gcov)
     endif()
 endif()
 
@@ -227,7 +228,7 @@ if(APPLE AND BUILD_OPENCS)
         COMMAND cp "${OpenMW_BINARY_DIR}/resources/version" "${OPENCS_BUNDLE_RESOURCES_DIR}/resources")
 endif()
 
-target_link_libraries(openmw-cs-lib
+target_link_libraries(openmw-cs-lib PUBLIC
     # CMake's built-in OSG finder does not use pkgconfig, so we have to
     # manually ensure the order is correct for inter-library dependencies.
     # This only makes a difference with `-DOPENMW_USE_SYSTEM_OSG=ON -DOSG_STATIC=ON`.
@@ -243,15 +244,17 @@ target_link_libraries(openmw-cs-lib
     components_qt
 )
 
-target_link_libraries(openmw-cs-lib Qt::Widgets Qt::Core Qt::Network Qt::OpenGL Qt::OpenGLWidgets Qt::Svg)
+target_link_libraries(openmw-cs-lib PUBLIC Qt::Widgets Qt::Core Qt::Network Qt::OpenGL Qt::OpenGLWidgets Qt::Svg)
 
 if (WIN32)
     target_sources(openmw-cs PRIVATE ${CMAKE_SOURCE_DIR}/files/windows/other-apps.manifest)
 endif()
 
 if (NOT APPLE AND BUILD_OPENCS)
-    INSTALL(TARGETS openmw-cs)
+    install(TARGETS openmw-cs ${runtime_dependency_arguments})
     INSTALL(FILES "$<TARGET_FILE_DIR:openmw-cs>/defaults-cs.bin" DESTINATION "${CMAKE_INSTALL_SYSCONFDIR}")
+
+    generate_deploy_script_for_qt_app(openmw-cs)
 endif()
 
 if (MSVC)
@@ -273,7 +276,7 @@ endif(USE_QT)
 
 if (BUILD_WITH_CODE_COVERAGE)
     target_compile_options(openmw-cs-lib PRIVATE --coverage)
-    target_link_libraries(openmw-cs-lib gcov)
+    target_link_libraries(openmw-cs-lib PRIVATE gcov)
 endif()
 
 if (MSVC AND PRECOMPILE_HEADERS_WITH_MSVC)

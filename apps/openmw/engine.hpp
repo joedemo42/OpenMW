@@ -3,6 +3,7 @@
 
 #include <atomic>
 #include <filesystem>
+#include <memory>
 
 #include <components/compiler/extensions.hpp>
 #include <components/debug/debuglog.hpp>
@@ -42,6 +43,11 @@ namespace MWLua
 {
     class LuaManager;
     class Worker;
+}
+
+namespace Misc
+{
+    class FrameStats;
 }
 
 namespace Stereo
@@ -129,7 +135,7 @@ namespace OMW
         SDL_Window* mWindow;
         std::unique_ptr<VFS::Manager> mVFS;
         std::unique_ptr<Resource::ResourceSystem> mResourceSystem;
-        osg::ref_ptr<SceneUtil::WorkQueue> mWorkQueue;
+        std::shared_ptr<SceneUtil::WorkQueue> mWorkQueue;
         std::unique_ptr<SceneUtil::UnrefQueue> mUnrefQueue;
         std::unique_ptr<MWWorld::World> mWorld;
         std::unique_ptr<MWSound::SoundManager> mSoundManager;
@@ -141,6 +147,8 @@ namespace OMW
         std::unique_ptr<MWInput::InputManager> mInputManager;
         std::unique_ptr<MWState::StateManager> mStateManager;
         std::unique_ptr<MWLua::LuaManager> mLuaManager;
+        // Outlives mLuaWorker, which reports into it from its own thread
+        std::unique_ptr<Misc::FrameStats> mFrameStats;
         std::unique_ptr<MWLua::Worker> mLuaWorker;
         std::unique_ptr<L10n::Manager> mL10nManager;
         MWBase::Environment mEnvironment;

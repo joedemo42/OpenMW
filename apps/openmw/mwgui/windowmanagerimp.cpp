@@ -7,6 +7,8 @@
 #include <optional>
 #include <thread>
 
+#include <osg/Image>
+#include <osg/ref_ptr>
 #include <osgViewer/Viewer>
 
 #include <MyGUI_ClipboardManager.h>
@@ -64,6 +66,8 @@
 #include "../mwbase/statemanager.hpp"
 #include "../mwbase/world.hpp"
 
+#include "../mwrender/localmap.hpp"
+#include "../mwrender/renderingmanager.hpp"
 #include "../mwrender/vismask.hpp"
 
 #include "../mwworld/cellstore.hpp"
@@ -152,9 +156,10 @@ namespace MWGui
     }
 
     WindowManager::WindowManager(SDL_Window* window, osgViewer::Viewer* viewer, osg::Group* guiRoot,
-        Resource::ResourceSystem* resourceSystem, SceneUtil::WorkQueue* workQueue, const std::filesystem::path& logpath,
-        bool consoleOnlyScripts, Translation::Storage& translationDataStorage, ToUTF8::FromType encoding,
-        bool exportFonts, const std::string& versionDescription, Files::ConfigurationManager& cfgMgr)
+        Resource::ResourceSystem* resourceSystem, const std::shared_ptr<SceneUtil::WorkQueue>& workQueue,
+        const std::filesystem::path& logpath, bool consoleOnlyScripts, Translation::Storage& translationDataStorage,
+        ToUTF8::FromType encoding, bool exportFonts, const std::string& versionDescription,
+        Files::ConfigurationManager& cfgMgr)
         : mOldUpdateMask(0)
         , mOldCullMask(0)
         , mStore(nullptr)
@@ -196,6 +201,7 @@ namespace MWGui
         , mHudEnabled(true)
         , mCursorVisible(true)
         , mCursorActive(true)
+        , mCursorInteractionEnabled(false)
         , mPlayerBounty(-1)
         , mGuiModes()
         , mGarbageDialogs()
@@ -336,7 +342,7 @@ namespace MWGui
         mGuiModeStates[GM_MainMenu] = GuiModeState(menu.get());
         mWindows.push_back(std::move(menu));
 
-        mLocalMapRender = std::make_unique<MWRender::LocalMap>(mViewer->getSceneData()->asGroup());
+        mLocalMapRender = MWBase::Environment::get().getWorld()->getRenderingManager()->createLocalMap();
         auto map = std::make_unique<MapWindow>(mCustomMarkers, mDragAndDrop.get(), mLocalMapRender.get(), mWorkQueue);
         mMap = map.get();
         mWindows.push_back(std::move(map));
@@ -348,8 +354,7 @@ namespace MWGui
         mWindows.push_back(std::move(statsWindow));
         trackWindow(mStatsWindow, makeStatsWindowSettingValues());
 
-        auto inventoryWindow = std::make_unique<InventoryWindow>(
-            *mDragAndDrop, *mItemTransfer, mViewer->getSceneData()->asGroup(), mResourceSystem);
+        auto inventoryWindow = std::make_unique<InventoryWindow>(*mDragAndDrop, *mItemTransfer);
         mInventoryWindow = inventoryWindow.get();
         mWindows.push_back(std::move(inventoryWindow));
 
@@ -537,7 +542,7 @@ namespace MWGui
 
         mHud->setVisible(true);
 
-        mCharGen = std::make_unique<CharacterCreation>(mViewer->getSceneData()->asGroup(), mResourceSystem);
+        mCharGen = std::make_unique<CharacterCreation>();
 
         updatePinnedWindows();
 
@@ -563,7 +568,7 @@ namespace MWGui
             disallowAll();
 
             mStatsWatcher->removeListener(mCharGen.get());
-            mCharGen = std::make_unique<CharacterCreation>(mViewer->getSceneData()->asGroup(), mResourceSystem);
+            mCharGen = std::make_unique<CharacterCreation>();
             mStatsWatcher->addListener(mCharGen.get());
         }
         else
@@ -660,7 +665,7 @@ namespace MWGui
 
         MWBase::Environment::get().getInputManager()->changeInputMode(!gameMode);
 
-        mInputBlocker->setVisible(gameMode);
+        mInputBlocker->setVisible(gameMode && !mCursorInteractionEnabled);
 
         if (loading)
             setCursorVisible(mMessageBoxManager && mMessageBoxManager->isInteractiveMessageBox());
@@ -1241,6 +1246,13 @@ namespace MWGui
         mCursorActive = active;
     }
 
+    void WindowManager::setCursorInteractionEnabled(bool enabled)
+    {
+        mCursorInteractionEnabled = enabled;
+        if (mInputBlocker)
+            mInputBlocker->setVisible(!isGuiMode() && !mCursorInteractionEnabled);
+    }
+
     void WindowManager::onRetrieveTag(const MyGUI::UString& tag, MyGUI::UString& result)
     {
         std::string_view tagView = tag;
@@ -1399,7 +1411,8 @@ namespace MWGui
 
     void WindowManager::onCursorChange(std::string_view name)
     {
-        mCursorManager->cursorChanged(name);
+        mMyGuiCursor = name;
+        mCursorManager->cursorChanged(mLuaCursorOverride.empty() ? name : mLuaCursorOverride);
     }
 
     void WindowManager::pushGuiMode(GuiMode mode)
@@ -1791,7 +1804,7 @@ namespace MWGui
 
     void WindowManager::allowMouse()
     {
-        mInputBlocker->setVisible(!isGuiMode());
+        mInputBlocker->setVisible(!isGuiMode() && !mCursorInteractionEnabled);
     }
 
     void WindowManager::notifyInputActionBound()
@@ -1865,6 +1878,37 @@ namespace MWGui
     {
         MyGUI::PointerManager::getInstance().setPointer(name);
         onCursorChange(name);
+    }
+
+    void WindowManager::createLuaCursor(const std::string& name, const std::string& path, int width, int height,
+        int hotspotX, int hotspotY, double rotation)
+    {
+        osg::ref_ptr<osg::Image> image = mResourceSystem->getImageManager()->getImage(VFS::Path::Normalized(path));
+        if (!image.valid())
+        {
+            Log(Debug::Warning) << "Failed to load Lua cursor texture: " << path;
+            return;
+        }
+        mCursorManager->createCursor(name, rotation, image, hotspotX, hotspotY, width, height);
+    }
+
+    void WindowManager::removeLuaCursor(const std::string& name)
+    {
+        if (mLuaCursorOverride == name)
+            mLuaCursorOverride.clear();
+        mCursorManager->removeCursor(name);
+        mCursorManager->cursorChanged(getCurrentCursorName());
+    }
+
+    void WindowManager::setLuaCursorOverride(const std::string& name)
+    {
+        mLuaCursorOverride = name;
+        mCursorManager->cursorChanged(getCurrentCursorName());
+    }
+
+    std::string WindowManager::getCurrentCursorName() const
+    {
+        return mLuaCursorOverride.empty() ? mMyGuiCursor : mLuaCursorOverride;
     }
 
     void WindowManager::showSoulgemDialog(MWWorld::Ptr item)

@@ -5,6 +5,7 @@
 
 #include <deque>
 #include <map>
+#include <optional>
 #include <set>
 #include <span>
 #include <string_view>
@@ -18,6 +19,8 @@
 #include "../mwworld/ptr.hpp"
 #include "../mwworld/spellcaststate.hpp"
 
+#include "../mwmechanics/movingtarget.hpp"
+
 #include "../mwrender/rendermode.hpp"
 
 namespace osg
@@ -26,8 +29,11 @@ namespace osg
     class Vec4f;
     class Matrixf;
     class Quat;
-    class Image;
-    class Stats;
+}
+
+namespace Misc
+{
+    class FrameStats;
 }
 
 namespace Loading
@@ -58,6 +64,7 @@ namespace ESM
     struct TimeStamp;
     class RefId;
     struct ExteriorCellLocation;
+    enum class GameFormat;
 }
 
 namespace MWPhysics
@@ -155,7 +162,7 @@ namespace MWBase
         virtual MWWorld::ESMStore& getStore() = 0;
         virtual const MWWorld::ESMStore& getStore() const = 0;
 
-        virtual const std::vector<int>& getESMVersions() const = 0;
+        virtual const std::vector<ESM::GameFormat>& getGameFormats() const = 0;
 
         virtual MWWorld::LocalScripts& getLocalScripts() = 0;
 
@@ -220,11 +227,11 @@ namespace MWBase
 
         virtual void changeWeather(ESM::RefId region, ESM::RefId id) = 0;
 
-        virtual const MWWorld::WeatherStore& getAllWeather() const = 0;
+        virtual MWWorld::WeatherStore& getAllWeather() const = 0;
 
         virtual int getCurrentWeatherScriptId() const = 0;
 
-        virtual const MWWorld::Weather& getCurrentWeather() const = 0;
+        virtual const MWWorld::Weather* getCurrentWeather() const = 0;
 
         virtual int getNextWeatherScriptId() const = 0;
 
@@ -439,7 +446,8 @@ namespace MWBase
         virtual void reattachPlayerCamera() = 0;
 
         /// \todo this does not belong here
-        virtual void screenshot(osg::Image* image, int w, int h) = 0;
+        /// Take a screenshot of w*h, not including the GUI, encoded as JPEG. Empty on failure.
+        virtual std::vector<char> screenshot(int w, int h) = 0;
 
         /// Find default position inside exterior cell specified by name
         /// \return empty RefId if exterior with given name not exists, the cell's RefId otherwise
@@ -478,7 +486,8 @@ namespace MWBase
         virtual void castSpell(const MWWorld::Ptr& actor, bool scriptedSpell = false) = 0;
 
         virtual void launchMagicBolt(const ESM::RefId& spellId, const MWWorld::Ptr& caster,
-            const osg::Vec3f& fallbackDirection, ESM::RefNum item)
+            const osg::Vec3f& fallbackDirection, ESM::RefNum item,
+            const std::optional<MWMechanics::MovingTarget>& movingTarget)
             = 0;
         virtual void launchProjectile(MWWorld::Ptr& actor, MWWorld::Ptr& projectile, const osg::Vec3f& worldPos,
             const osg::Quat& orient, MWWorld::Ptr& bow, float speed, float attackStrength, float attackWindUp)
@@ -595,7 +604,7 @@ namespace MWBase
 
         virtual bool isAreaOccupiedByOtherActor(const MWWorld::ConstPtr& actor, const osg::Vec3f& position) const = 0;
 
-        virtual void reportStats(unsigned int frameNumber, osg::Stats& stats) const = 0;
+        virtual void reportStats(unsigned int frameNumber, Misc::FrameStats& stats) const = 0;
 
         virtual std::vector<MWWorld::Ptr> getAll(const ESM::RefId& id) = 0;
 

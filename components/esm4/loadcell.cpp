@@ -35,9 +35,6 @@
 // #include "writer.hpp"
 
 #include <components/esm/refid.hpp>
-
-float ESM4::Cell::sInvalidWaterLevel = -200000.f;
-
 // TODO: Try loading only EDID and XCLC (along with mFormId, mFlags and mParent)
 //
 // But, for external cells we may be scanning the whole record since we don't know if there is
@@ -50,8 +47,8 @@ void ESM4::Cell::load(ESM4::Reader& reader)
     ESM::FormId formId = reader.getFormIdFromHeader();
     mId = formId;
     mFlags = reader.hdr().record.flags;
+    mGameFormat = reader.gameFormat();
     mParent = reader.currWorld();
-    mWaterHeight = sInvalidWaterLevel;
     reader.clearCellGrid(); // clear until XCLC FIXME: somehow do this automatically?
 
     // Sometimes cell 0,0 does not have an XCLC sub record (e.g. ToddLand 000009BF)
@@ -70,8 +67,6 @@ void ESM4::Cell::load(ESM4::Reader& reader)
     // cell child groups if we are loading them after restoring the context
     // (may be easier to update the context before saving?)
     reader.setCurrCell(formId); // save for LAND (and other children) to access later
-    std::uint32_t esmVer = reader.esmVersion();
-    bool isSkyrim = (esmVer == ESM::VER_170 || esmVer == ESM::VER_094);
 
     while (reader.getSubRecordHeader())
     {
@@ -129,6 +124,8 @@ void ESM4::Cell::load(ESM4::Reader& reader)
                     reader.get(value);
                     mCellFlags = value;
                 }
+                if (mGameFormat > ESM::GameFormat::TES4 && (mCellFlags & CELL_Interior))
+                    mCellFlags &= static_cast<std::uint16_t>(~CELL_HasWater); // later games only use placed water
                 break;
             }
             case ESM::fourCC("XCLR"): // for exterior cells
@@ -241,11 +238,6 @@ void ESM4::Cell::load(ESM4::Reader& reader)
             default:
                 throw std::runtime_error("ESM4::CELL::load - Unknown subrecord " + ESM::printName(subHdr.typeId));
         }
-    }
-    if (isSkyrim) // Skyrim seems to have broken water level records. But the subrecord exists so it
-                  // shouldn't be skipped.
-    {
-        mWaterHeight = sInvalidWaterLevel;
     }
     mReaderContext = reader.getContext();
 }
