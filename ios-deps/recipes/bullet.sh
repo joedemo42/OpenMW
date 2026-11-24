@@ -4,11 +4,11 @@
 DEP_ARTIFACTS=(Bullet)
 # Gimpact (in BulletCollision) is LGPL, BSD or zlib: used under zlib
 DEP_LICENSES=(LICENSE.txt)
-BULLET_VERSION=3.17
+BULLET_VERSION=3.25
 
 bullet_download() {
     fetch "https://github.com/bulletphysics/bullet3/archive/refs/tags/$BULLET_VERSION.tar.gz" \
-        baa642c906576d4d98d041d0acb80d85dd6eff6e3c16a009b1abf1ccd2bc0a61
+        c45afb6399e3f68036ddb641c6bf6f552bf332d5ab6be62f7e6c54eda05ceb77
 }
 
 bullet_build() {  # <simulator|device>
