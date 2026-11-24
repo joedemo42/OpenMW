@@ -1,0 +1,56 @@
+Editing-changed callback
+
+ControllerView enters edit mode when the app passes isEditing: true,
+but the layout editor's Done only resets the view's internal state. An
+app that changes its own touch handling while the editor is open (all
+touches to the editor, none to the game behind it) needs to know when
+editing ends.
+
+New optional init parameter onEditingChanged, called with the new value
+whenever edit mode starts or ends.
+
+Upstream: not submitted.
+
+diff -ru a/Sources/Melo-Controller/ControllerView.swift b/Sources/Melo-Controller/ControllerView.swift
+--- a/Sources/Melo-Controller/ControllerView.swift	2026-11-24 13:09:28
++++ b/Sources/Melo-Controller/ControllerView.swift	2026-11-24 13:09:47
+@@ -57,6 +57,8 @@
+     @State private var showEditControls = true
+     @State var isEditing: Bool = false
+     private var isEditingInput: Bool
++    /// Called when edit mode starts or ends, also by the layout editor's Done.
++    private var onEditingChanged: ((Bool) -> Void)?
+ 
+     /// An optional closure that replaces the built-in portrait/landscape layouts.
+     ///
+@@ -87,8 +89,10 @@
+         isEditing: Bool,
+         gameId: String? = nil,
+         gameName: String? = nil,
++        onEditingChanged: ((Bool) -> Void)? = nil,
+         @ViewBuilder customControllerLayout: @escaping (@escaping SubView, @escaping JoystickSubView, Bool) -> V
+     ) {
++        self.onEditingChanged = onEditingChanged
+         self.isEditingInput = isEditing
+         self._isEditing = State(initialValue: isEditing)
+         self.gameId = gameId
+@@ -101,8 +105,10 @@
+         controller: any Controller,
+         isEditing: Bool,
+         gameId: String? = nil,
+-        gameName: String? = nil
++        gameName: String? = nil,
++        onEditingChanged: ((Bool) -> Void)? = nil
+     ) {
++        self.onEditingChanged = onEditingChanged
+         self.isEditingInput = isEditing
+         self._isEditing = State(initialValue: isEditing)
+         self.gameId = gameId
+@@ -130,6 +136,7 @@
+             .padding()
+             .onChange(of: verticalSizeClass) { _ in controllerHandler.updateOrientation() }
+             .onChange(of: isEditingInput) { isEditing = $0 }
++            .onChange(of: isEditing) { onEditingChanged?($0) }
+             .onAppear {
+                 controllerHandler.updateOrientation()
+                 loadLayout()

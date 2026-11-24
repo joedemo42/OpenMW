@@ -1,0 +1,35 @@
+App-set layouts folder
+
+The layout editor saves its layouts in Documents/controller_layouts,
+which the app cannot change. An app that keeps its own files in a
+folder structure of its own needs them elsewhere.
+
+New public LayoutExporter.directory: the layouts' folder, set by the
+app before the controller view appears; unset, Documents/
+controller_layouts as before.
+
+Upstream: not submitted.
+
+diff -ru a/Sources/Melo-Controller/Layout/LayoutManager.swift b/Sources/Melo-Controller/Layout/LayoutManager.swift
+--- a/Sources/Melo-Controller/Layout/LayoutManager.swift	2026-11-24 13:10:02
++++ b/Sources/Melo-Controller/Layout/LayoutManager.swift	2026-11-24 13:10:02
+@@ -28,6 +28,9 @@
+ /// App-Side editable types
+ public class LayoutExporter {
+     public static var fileType = "meloLayout"
++
++    /// Where the layouts are saved (the app sets it before the controller view appears); nil: Documents/controller_layouts
++    public static var directory: URL?
+     
+     public static var meloLayout = UTType(exportedAs: "com.stossy11.melocontroller.layout",
+                                    conformingTo: .data)
+@@ -38,6 +41,9 @@
+     private init() {}
+ 
+     private var baseURL: URL {
++        if let directory = LayoutExporter.directory {
++            return directory
++        }
+         let docDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+         return docDir.appendingPathComponent("controller_layouts")
+     }

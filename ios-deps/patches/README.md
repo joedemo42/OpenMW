@@ -23,5 +23,7 @@ source again.
 | OpenSceneGraph (OpenMW fork, OSG 3.6.5) | `osg/0001-glextensions-egl-proc-address-on-ios.patch` | GL functions through `eglGetProcAddress` on iOS with desktop GL |
 | | `osg/0002-cmake-find-png-jpeg-on-ios.patch` | libpng and libjpeg found on CMake's iOS platform (png plugin) |
 | Melo-Controller (commit b16a8e39) | `melo-controller/0001-label-overrides.patch` | per-button symbol and layout editor name, so the app can offer other label styles |
+| | `melo-controller/0002-editing-changed-callback.patch` | callback when edit mode starts or ends (the editor's Done included) |
+| | `melo-controller/0003-layouts-directory.patch` | app-set folder for the saved layouts |
 
 Mesa stays on 25.1.x: from 25.2 on, zink requires robustness2 `nullDescriptor`, which MoltenVK does not provide.
