@@ -1,0 +1,45 @@
+iPad: more room around the D-pad and ABXY
+
+On an iPad, the default landscape layout puts the shoulder buttons
+right on top of the D-pad and ABXY clusters and L3/R3 and back/start
+right next to them, so thumbs easily hit the wrong button.
+
+On iPad only: 40 instead of 20 points between the shoulder buttons and
+the clusters, and 40 points more between the centre buttons and the
+clusters. The phone layouts are unchanged.
+
+Upstream: not submitted.
+
+diff -ru a/Sources/Melo-Controller/ControllerView.swift b/Sources/Melo-Controller/ControllerView.swift
+--- a/Sources/Melo-Controller/ControllerView.swift	2026-11-24 13:38:35
++++ b/Sources/Melo-Controller/ControllerView.swift	2026-11-24 13:38:35
+@@ -257,11 +257,16 @@
+         }
+     }
+ 
++    // iPad: the shoulder buttons and the centre buttons (L3/R3, back/start) further from the D-pad and ABXY
++    private var isPadLayout: Bool {
++        UIDevice.current.userInterfaceIdiom == .pad
++    }
++
+     private var landscapeLayout: some View {
+         VStack {
+             Spacer()
+             HStack {
+-                VStack(spacing: 20) {
++                VStack(spacing: isPadLayout ? 40 : 20) {
+                     shoulderButtonsLeft
+                     ZStack {
+                         editableJoystick(id: "leftJoystick", showBackground: $hideDpad)
+@@ -279,9 +284,10 @@
+ 
+                 Spacer()
+                 centerButtons
++                    .padding(.horizontal, isPadLayout ? 40 : 0)
+                 Spacer()
+ 
+-                VStack(spacing: 20) {
++                VStack(spacing: isPadLayout ? 40 : 20) {
+                     shoulderButtonsRight
+                     ZStack {
+                         editableJoystick(id: "rightJoystick", iscool: true, showBackground: $hideABXY)

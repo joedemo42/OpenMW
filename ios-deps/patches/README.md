@@ -25,5 +25,6 @@ source again.
 | Melo-Controller (commit b16a8e39) | `melo-controller/0001-label-overrides.patch` | per-button symbol and layout editor name, so the app can offer other label styles |
 | | `melo-controller/0002-editing-changed-callback.patch` | callback when edit mode starts or ends (the editor's Done included) |
 | | `melo-controller/0003-layouts-directory.patch` | app-set folder for the saved layouts |
+| | `melo-controller/0004-ipad-spacing.patch` | more room between the shoulder and centre buttons and the D-pad / ABXY on iPad |
 
 Mesa stays on 25.1.x: from 25.2 on, zink requires robustness2 `nullDescriptor`, which MoltenVK does not provide.
