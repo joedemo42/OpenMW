@@ -1,0 +1,67 @@
+Cluster lift
+
+The default landscape layout puts the left and right clusters (shoulder
+buttons, stick, D-pad / ABXY) at the bottom corners, where a game draws
+its own HUD (health bars, minimap). The layout editor moves single
+buttons and sticks, but an app cannot change the default positions.
+
+New optional ControllerView init parameter clusterLift: points the left
+and the right cluster are raised in the landscape layout (an offset: the
+centre buttons stay where they are). Default (0, 0): unchanged.
+
+Upstream: not submitted.
+
+diff -ru a/Sources/Melo-Controller/ControllerView.swift b/Sources/Melo-Controller/ControllerView.swift
+--- a/Sources/Melo-Controller/ControllerView.swift	2026-11-24 13:52:30
++++ b/Sources/Melo-Controller/ControllerView.swift	2026-11-24 13:52:30
+@@ -59,6 +59,9 @@
+     private var isEditingInput: Bool
+     /// Called when edit mode starts or ends, also by the layout editor's Done.
+     private var onEditingChanged: ((Bool) -> Void)?
++    /// Raises the left and right clusters (shoulder buttons, stick, D-pad / ABXY) in the landscape layout, e.g. above
++    /// the app's own HUD; points.
++    private var clusterLift: (left: CGFloat, right: CGFloat)
+ 
+     /// An optional closure that replaces the built-in portrait/landscape layouts.
+     ///
+@@ -90,9 +93,11 @@
+         gameId: String? = nil,
+         gameName: String? = nil,
+         onEditingChanged: ((Bool) -> Void)? = nil,
++        clusterLift: (left: CGFloat, right: CGFloat) = (0, 0),
+         @ViewBuilder customControllerLayout: @escaping (@escaping SubView, @escaping JoystickSubView, Bool) -> V
+     ) {
+         self.onEditingChanged = onEditingChanged
++        self.clusterLift = clusterLift
+         self.isEditingInput = isEditing
+         self._isEditing = State(initialValue: isEditing)
+         self.gameId = gameId
+@@ -106,9 +111,11 @@
+         isEditing: Bool,
+         gameId: String? = nil,
+         gameName: String? = nil,
+-        onEditingChanged: ((Bool) -> Void)? = nil
++        onEditingChanged: ((Bool) -> Void)? = nil,
++        clusterLift: (left: CGFloat, right: CGFloat) = (0, 0)
+     ) {
+         self.onEditingChanged = onEditingChanged
++        self.clusterLift = clusterLift
+         self.isEditingInput = isEditing
+         self._isEditing = State(initialValue: isEditing)
+         self.gameId = gameId
+@@ -281,6 +288,7 @@
+                         }
+                     }
+                 }
++                .offset(y: -clusterLift.left)
+ 
+                 Spacer()
+                 centerButtons
+@@ -301,6 +309,7 @@
+                         }
+                     }
+                 }
++                .offset(y: -clusterLift.right)
+             }
+         }
+     }

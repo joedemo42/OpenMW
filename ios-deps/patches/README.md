@@ -26,5 +26,6 @@ source again.
 | | `melo-controller/0002-editing-changed-callback.patch` | callback when edit mode starts or ends (the editor's Done included) |
 | | `melo-controller/0003-layouts-directory.patch` | app-set folder for the saved layouts |
 | | `melo-controller/0004-ipad-spacing.patch` | more room between the shoulder and centre buttons and the D-pad / ABXY on iPad |
+| | `melo-controller/0005-cluster-lift.patch` | app-set lift of the left and right clusters, e.g. above the game's HUD |
 
 Mesa stays on 25.1.x: from 25.2 on, zink requires robustness2 `nullDescriptor`, which MoltenVK does not provide.
