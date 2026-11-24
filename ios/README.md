@@ -1,7 +1,8 @@
 # OpenMW for iOS and iPadOS (unofficial port)
 
-This branch (`openmw-ios`) ports OpenMW 0.52 to iPad and iPhone. It renders with desktop OpenGL through Mesa's
-Zink driver on MoltenVK (Vulkan on Metal) and uses SDL2's UIKit backend, so the engine runs largely unchanged.
+This branch (`openmw-ios`) ports OpenMW 0.53 (in development) to iPad and iPhone. It renders with desktop OpenGL
+through Mesa's Zink driver on MoltenVK (Vulkan on Metal) and uses SDL2's UIKit backend, so the engine runs largely
+unchanged.
 
 This is an unofficial port: it is not supported by the OpenMW team, so please don't ask about it on the OpenMW
 forums. The app contains no game data: you need your own copy of Morrowind for the PC. OpenMW is licensed under the
